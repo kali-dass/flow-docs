@@ -42,3 +42,22 @@ Choose where to start based on what you need:
 | Guide | What it covers |
 |---|---|
 | [Comparisons](comparisons/README.md) | Measured against other gateways on identical hardware |
+
+## Current Features
+
+- **Flexible routing** — path prefix, regex, headers, SNI with AND/OR combinators
+- **Load balancing** — round-robin, random, consistent hashing (FVN, Ketama)
+- **Protocols** — HTTP/1.1, HTTP/2, and cleartext h2c (both client and upstream)
+- **TLS** — terminate on clients, originate to upstreams, per-upstream CAs
+- **Policies** — rate limiting (global/per-IP/per-path), IP blocking, header rewriting
+- **Zero-downtime upgrades** — graceful reload with connection handoff
+
+## Planned Features (API Gateway & AI Gateway)
+
+- **Authentication** — JWT, API-key, OAuth2/OIDC, mTLS, HMAC signing
+- **Transformation** — request/response body rewriting, schema validation, CORS, URL rewrites
+- **Per-user Rate Limiting** — move beyond per-IP to per-developer/per-tenant control
+- **API Versioning** — built-in /v1/ vs /v2/ branching logic
+- **LLM Traffic Management** — cost estimation, token counting, usage tracking
+
+These features are planned for upcoming releases. Check back for updates as Flow evolves.
