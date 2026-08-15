@@ -1,8 +1,6 @@
 # Flow Documentation
 
-**Flow** is a high-performance reverse proxy built in Rust. It routes HTTP/1.1 and HTTP/2
-traffic to upstream services based on paths, headers, and SNI, with load balancing, TLS
-termination, rate limiting, and header rewriting — all driven by a single KDL config file.
+**Flow** is a high-performance API and AI Gateway built in Rust. Today it functions as an advanced reverse proxy for HTTP/1.1 and HTTP/2 traffic, routing based on paths, headers, and SNI, with load balancing, TLS termination, rate limiting, and header rewriting — all driven by a single KDL config file. Flow is **evolving into a fully-featured API Gateway and AI Gateway** with request transformation, authentication, per-user rate limiting, and LLM traffic management planned for upcoming releases.
 
 ## Quick Start
 
