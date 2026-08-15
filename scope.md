@@ -4,9 +4,9 @@
 
 Understanding what Flow is **not** helps you evaluate whether it's the right tool and design architectures that complement it correctly.
 
-## Flow is a Reverse Proxy
+## Flow Today: A High-Performance Reverse Proxy
 
-Flow is a **high-performance reverse proxy**. It accepts HTTP/1.1 and HTTP/2 requests from clients, routes them to upstream backends, and returns responses. That's it.
+Flow is currently a **high-performance reverse proxy**. It accepts HTTP/1.1 and HTTP/2 requests from clients, routes them to upstream backends, and returns responses. However, Flow is **evolving to become a full API Gateway and AI Gateway** — these are planned capabilities, not distant ideas.
 
 ### What That Means
 
