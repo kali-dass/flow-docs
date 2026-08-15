@@ -1,5 +1,10 @@
 # Routing
 
+> **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
+> **Making a decision?** See [Design Decisions](design-decisions.md)
+> **Understanding limitations?** See [Limitations](limitations.md)
+> **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Policies](policies.md) • [Performance](performance.md)
+
 Flow picks exactly one route per request. This page covers the matchers you can write and
 how Flow decides which route wins when several match.
 

@@ -1,5 +1,10 @@
 # Policies
 
+> **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
+> **Making a decision?** See [Design Decisions](design-decisions.md)
+> **Understanding limitations?** See [Limitations](limitations.md)
+> **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
+
 Policies (called *filters* in the config) inspect or rewrite traffic as it passes through
 Flow. They are declared in a `path-control` block.
 

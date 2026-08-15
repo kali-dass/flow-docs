@@ -1,4 +1,9 @@
-# Command-line reference
+# Command-Line Reference
+
+> **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
+> **Making a decision?** See [Design Decisions](design-decisions.md)
+> **Understanding limitations?** See [Limitations](limitations.md)
+> **Looking for something specific?** [Configuration Reference](configuration.md) • [Operations](operations.md) • [Performance](performance.md)
 
 Flow is started from the command line and configured from a KDL file. The command line
 handles *how this process runs*; the config file describes *what the proxy does*.

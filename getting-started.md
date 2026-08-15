@@ -1,4 +1,9 @@
-# Getting started
+# Getting Started
+
+> **New here?** You're in the right place
+> **Want more context?** See [Technical Overview](technical-overview.md)
+> **Making a decision?** See [Design Decisions](design-decisions.md)
+> **Understanding limitations?** See [Limitations](limitations.md)
 
 This guide takes you from an empty directory to a working proxy in a few minutes.
 

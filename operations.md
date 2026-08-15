@@ -1,5 +1,10 @@
 # Operations
 
+> **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
+> **Making a decision?** See [Design Decisions](design-decisions.md)
+> **Understanding limitations?** See [Limitations](limitations.md)
+> **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
+
 Running Flow in production: process management, zero-downtime upgrades, and logging.
 
 ## Running
@@ -123,6 +128,20 @@ Warnings worth watching for at startup:
 `timing-header` adds latency headers to responses. It's cheap to run; gate it based on
 whether you want to expose internal timing to clients, not for performance. See
 [Policies](policies/timing-header.md).
+
+### Planned: Comprehensive Logging & Observability
+
+Flow's current logging is basic — startup messages and `RUST_LOG` level control only. Comprehensive observability features are **planned for future releases**:
+
+- **Access logs** — structured JSON request/response logs (one per request), sampled or filtered to avoid overwhelming disk I/O
+- **Metrics** — in-process histograms (latency, throughput, errors) exposed on a `/metrics` endpoint for Prometheus scraping
+- **Tracing** — OpenTelemetry integration for distributed tracing across Flow and backend services
+- **Log masking** — redaction of sensitive headers, tokens, and PII before logs reach disk
+
+Until then, rely on:
+- Response headers (via `timing-header` filter) for per-request latency
+- `RUST_LOG=debug` for startup diagnostics
+- External observability tools (load balancers, service mesh, APM agents) for fleet-wide visibility
 
 ---
 

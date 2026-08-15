@@ -1,4 +1,9 @@
-# Configuration reference
+# Configuration Reference
+
+> **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
+> **Making a decision?** See [Design Decisions](design-decisions.md)
+> **Understanding limitations?** See [Limitations](limitations.md)
+> **Looking for something specific?** [Protocols](protocols.md) • [Routing](routing.md) • [Policies](policies.md) • [Performance](performance.md)
 
 Flow is configured with a single [KDL](https://kdl.dev) file, passed with `--config-kdl`.
 The file has two top-level blocks: `system` and `services`.

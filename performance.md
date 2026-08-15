@@ -1,5 +1,10 @@
 # Performance
 
+> **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
+> **Making a decision?** See [Design Decisions](design-decisions.md)
+> **Understanding limitations?** See [Limitations](limitations.md)
+> **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Operations](operations.md)
+
 Flow's throughput is **CPU-bound and depends heavily on your configuration** .
 - TLS vs. cleartext
 - HTTP/1.1 vs. HTTP/2 

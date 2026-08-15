@@ -1,5 +1,10 @@
 # Comparisons
 
+> **New here?** Start with [Getting Started](../getting-started.md) or [Technical Overview](../technical-overview.md)
+> **Making a decision?** See [Design Decisions](../design-decisions.md)
+> **Understanding limitations?** See [Limitations](../limitations.md)
+> **Looking for something specific?** [Protocols](../protocols.md) • [Configuration Reference](../configuration.md) • [Performance](../performance.md)
+
 Flow measured against other gateways, on identical hardware with an identical workload.
 
 **TL;DR**: Flow is ahead or roughly tied in every configuration — cleartext HTTP/1.1 (no
