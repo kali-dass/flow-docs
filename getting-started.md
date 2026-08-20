@@ -10,6 +10,7 @@ This guide takes you from an empty directory to a working proxy in a few minutes
 ## Prerequisites
 
 - The `flow` binary
+- A valid **license file** — Flow refuses to start without one; see [Licensing](license.md)
 - A backend service to proxy to — anything that answers HTTP will do
 
 Check that the binary runs:
@@ -68,9 +69,15 @@ problem. Fix it and re-run. This is worth doing in CI.
 
 ## Run it
 
+Place your license file where Flow can find it — the simplest option is `license.json` in the
+current directory, or point at it explicitly:
+
 ```bash
-flow --config-kdl myconfig.kdl
+flow --config-kdl myconfig.kdl --license-file /path/to/license.json
 ```
+
+> If Flow exits immediately with a license error instead of starting, see
+> [Licensing](license.md) — this is a separate check from your config file, and happens first.
 
 Then send a request:
 
@@ -163,3 +170,4 @@ through to the second.
 - [Routing](routing.md) — header matching, SNI, regex, and how ties are scored
 - [Policies](policies.md) — rate limiting, IP blocking, header rewriting
 - [Performance](performance.md) — how fast Flow goes, and how to keep it there
+- [Licensing](license.md) — how the license file works, and what to do if Flow won't start

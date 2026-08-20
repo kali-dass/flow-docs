@@ -10,8 +10,14 @@ Running Flow in production: process management, zero-downtime upgrades, and logg
 ## Running
 
 ```bash
-flow --config-kdl /etc/flow/config.kdl
+flow --config-kdl /etc/flow/config.kdl --license-file /etc/flow/license.json
 ```
+
+Flow refuses to start without a valid, unexpired license file — checked before anything else,
+before any listener opens. See [Licensing](license.md) for where Flow looks for it
+(`--license-file`, the `FLOW_LICENSE_FILE` env var, or a default path) and what happens as it
+approaches expiration. In a container/orchestrator, `FLOW_LICENSE_FILE` set once in the
+deployment spec is usually more convenient than repeating the flag.
 
 Validate the config first — in CI, and again before any deploy:
 
@@ -19,7 +25,9 @@ Validate the config first — in CI, and again before any deploy:
 flow --config-kdl /etc/flow/config.kdl --validate-configs
 ```
 
-This parses the file, builds every route and connector, and exits without binding ports.
+This parses the file, builds every route and connector, and exits without binding ports. It
+also checks the license (that check has no network dependency, so it isn't skipped here the
+way some other startup checks are).
 
 ## Running in the background
 

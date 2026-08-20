@@ -197,6 +197,24 @@ Until these features ship, use:
 
 ---
 
+## License Expiration Is Checked at Startup, Not Continuously
+
+**Behavior**: Flow validates its license file once, at startup, before opening any listener. If
+the license is invalid or already expired at that point, Flow refuses to start.
+
+**What this means in practice**: if a license expires *while Flow is already running*, Flow
+does not notice — it keeps serving traffic normally until the next restart. There is currently
+no background check that stops a running Flow instance partway through its process lifetime
+because its license expired.
+
+**Planned**: a continuous runtime check that starts rejecting new requests once a license
+expires (letting in-flight requests finish normally) is planned but not yet implemented.
+
+**See**: [Licensing](license.md) for the full startup license check and where Flow looks for
+the license file.
+
+---
+
 ## Next Steps
 
 - **Design around these behaviors?** See [Design Decisions](design-decisions.md) for architecture patterns

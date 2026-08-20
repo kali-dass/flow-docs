@@ -33,6 +33,7 @@ For "Why is it doing that?" — behaviors that aren't bugs but important to unde
 - Protocol enforcement (h2-only strict matching)
 - Rate limiting scope (per-instance)
 - Connection pooling and reuse
+- License expiration checked at startup only, not continuously while running
 
 ### [**What Flow Is Not (Yet)**](scope.md)
 
@@ -60,6 +61,8 @@ For "Is Flow right for us?" — clarification on scope for evaluating whether Fl
 **Can Flow do virtual hosting?** Yes, via SNI matching or header matching. See [Design Decisions](design-decisions.md).
 
 **Can Flow run in Kubernetes?** Yes. Deploy as a DaemonSet or Deployment, expose via a Kubernetes Service. No special integration yet (no automatic service discovery).
+
+**Does Flow need a license to run?** Yes — every instance requires a valid license file, checked at startup before Flow opens any listener. See [Licensing](license.md).
 
 **What observability features does Flow have?** Currently: basic startup logging and response-header timing injection. **Planned for future releases**: structured access logs (JSON, per-request), Prometheus metrics endpoint, OpenTelemetry tracing, and log masking for PII/secrets. See [Operations](operations.md#planned-comprehensive-logging--observability).
 

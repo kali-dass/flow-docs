@@ -91,6 +91,9 @@ system {
 
 > `upgrade` is deliberately **not** settable in the file — it must be passed on the CLI.
 
+> The **license file** is also not part of this block — like `upgrade`, it's CLI/environment
+> only (`--license-file` / `FLOW_LICENSE_FILE`). See [Licensing](license.md).
+
 ---
 
 ## `services` block
@@ -428,5 +431,7 @@ See [Policies](policies.md) for every available filter and its options.
 A few settings can also be given on the command line. The interaction is **not** a simple
 "CLI wins" rule — switches like `--daemonize` can only be turned *on* from the CLI, and
 `--pidfile` / `--upgrade-socket` must *agree* with the config file or Flow refuses to start.
+`--license-file` (and its `FLOW_LICENSE_FILE` env-var equivalent) has no config-file form at
+all — the license is checked independently of this file, before it's even parsed.
 
-See the [Command-line reference](cli.md) for the details.
+See the [Command-line reference](cli.md) and [Licensing](license.md) for the details.

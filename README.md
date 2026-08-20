@@ -34,6 +34,7 @@ Choose where to start based on what you need:
 | [Policies](policies.md) | Rate limiting, IP blocking, header rewriting, timing |
 | [Performance](performance.md) | Benchmarks, safe operating rates, and tuning |
 | [Operations](operations.md) | Running in production, zero-downtime upgrades, logging |
+| [Licensing](license.md) | The license file, where Flow looks for it, and what happens at expiration |
 
 ### Understanding Limitations
 | Guide | What it covers |

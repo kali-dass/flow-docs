@@ -21,6 +21,7 @@ Options:
       --upgrade                                  Take over an existing server's listeners
       --upgrade-socket <UPGRADE_SOCKET>          Path to the upgrade socket
       --pidfile <PIDFILE>                        Path to the pidfile, used for upgrade
+      --license-file <LICENSE_FILE>               Path to the signed license file [env: FLOW_LICENSE_FILE]
   -h, --help                                     Print help
 ```
 
@@ -135,6 +136,19 @@ Usually set once in the config file's `system` block.
 Where to write the process ID. Required when `--daemonize` is used. Must be an absolute
 path.
 
+## `--license-file <PATH>`
+
+Path to Flow's signed license file. Flow **refuses to start** without a valid, unexpired
+license — this is checked before anything else, before any listener opens.
+
+```bash
+flow --config-kdl config.kdl --license-file /etc/flow/license.json
+```
+
+If omitted, Flow falls back to the `FLOW_LICENSE_FILE` environment variable, and if that's
+also unset, to `./license.json` in the current directory. See [Licensing](license.md) for the
+full precedence order, exactly what gets checked, and what the failure messages mean.
+
 ---
 
 ## How the command line and the config file interact
@@ -245,6 +259,21 @@ ERROR transfer_fd: Giving up reading socket from: /tmp/flow-upgrade.sock, error:
 
 That is not a broken socket — **it means nobody sent the signal.** See
 [Operations](operations.md).
+
+### 5. No license file is a hard failure, unlike no `--config-kdl`
+
+This is the opposite of gotcha #1. A missing `--config-kdl` is silently accepted (Flow starts,
+serves nothing). A missing or invalid **license** is not — Flow logs a clear error and exits
+immediately, before it even looks at your KDL config:
+
+```bash
+flow --config-kdl config.kdl
+# license: invalid — refusing to start
+```
+
+If you're following this guide for the first time and Flow exits immediately with a
+license-related error, that's expected — you need a license file in one of the three locations
+described in [Licensing](license.md), not a config problem to debug.
 
 ---
 
