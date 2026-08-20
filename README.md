@@ -52,11 +52,12 @@ Choose where to start based on what you need:
 - **Protocols** — HTTP/1.1, HTTP/2, and cleartext h2c (both client and upstream)
 - **TLS** — terminate on clients, originate to upstreams, per-upstream CAs
 - **Policies** — rate limiting (global/per-IP/per-path), IP blocking, header rewriting
+- **Authentication** — [JWT validation](policies/jwt-validate.md) against a JWKS endpoint or a static key, multi-issuer
 - **Zero-downtime upgrades** — graceful reload with connection handoff
 
 ## Planned Features (API Gateway & AI Gateway)
 
-- **Authentication** — JWT, API-key, OAuth2/OIDC, mTLS, HMAC signing
+- **Authentication** — API-key, OAuth2/OIDC, mTLS, HMAC signing (JWT validation already shipped — see [Current Features](#current-features))
 - **Transformation** — request/response body rewriting, schema validation, CORS, URL rewrites
 - **Per-user Rate Limiting** — move beyond per-IP to per-developer/per-tenant control
 - **API Versioning** — built-in /v1/ vs /v2/ branching logic

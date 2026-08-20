@@ -7,7 +7,7 @@
 
 ## What is Flow?
 
-Flow is a high-performance API and AI Gateway written in Rust, evolving from an advanced reverse proxy foundation. Today, it terminates client connections, routes traffic based on HTTP paths, headers, or TLS SNI, and proxies requests to upstream backends with HTTP/1.1 and HTTP/2 support (with optional TLS) — all driven by a single KDL configuration file. Flow is **planned to become a fully-featured API Gateway** with request transformation, authentication, per-developer rate limiting, and AI/LLM traffic management capabilities in upcoming releases.
+Flow is a high-performance API and AI Gateway written in Rust, evolving from an advanced reverse proxy foundation. Today, it terminates client connections, routes traffic based on HTTP paths, headers, or TLS SNI, proxies requests to upstream backends with HTTP/1.1 and HTTP/2 support (with optional TLS), and verifies [JWTs](policies/jwt-validate.md) before routing — all driven by a single KDL configuration file. Flow is **planned to become a fully-featured API Gateway** with request transformation, further authentication methods (API-key, OAuth2/OIDC, mTLS, HMAC), per-developer rate limiting, and AI/LLM traffic management capabilities in upcoming releases.
 
 ## How It Works
 

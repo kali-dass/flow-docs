@@ -179,13 +179,13 @@ Internet
 
 ## API Gateway Roadmap
 
-**Today**: Flow is a high-performance reverse proxy focused on routing and load balancing. It handles HTTP/1.1 and HTTP/2 traffic, TLS termination, and basic policies (rate limiting, header rewriting).
+**Today**: Flow is a high-performance reverse proxy focused on routing and load balancing. It handles HTTP/1.1 and HTTP/2 traffic, TLS termination, policies (rate limiting, header rewriting), and [JWT validation](policies/jwt-validate.md) (JWKS or a static key, multi-issuer).
 
 **Planned**: Flow is evolving to include **full API Gateway** and **AI Gateway** capabilities. These will bring:
 - API versioning (built-in /v1/ vs /v2/ branching logic)
 - Per-developer/per-user rate limits and quotas
 - Request/response transformation (schema validation, body rewriting)
-- Authentication (JWT validation, OAuth, mTLS enforcement)
+- Further authentication methods (API-key, OAuth2/OIDC, mTLS enforcement, HMAC signing)
 - API documentation and schema management
 - AI/LLM traffic handling and cost control
 
@@ -193,13 +193,13 @@ Internet
 - No built-in API versioning
 - Rate limiting is per-IP or per-path only (not per-user/developer)
 - No request/response body transformation
-- No JWT/OAuth validation at the gateway
+- JWT validation is supported; OAuth2/OIDC, API-key, and mTLS auth are not yet
 - No API documentation/schema management
 
 **Coming soon to Flow**:
 - API versioning and per-user/per-developer rate limiting
 - Request/response transformation and validation
-- OAuth and JWT authentication
+- OAuth2/OIDC, API-key, and mTLS authentication (JWT validation already shipped)
 - API documentation and schema management
 
 Flow is evolving to consolidate API management into a single, high-performance system. Check the roadmap as these features ship — the goal is to eliminate the need for layered API gateway solutions.
