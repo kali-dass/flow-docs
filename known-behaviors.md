@@ -156,7 +156,7 @@ upstream {
 
 ## Logging and Observability
 
-**Current behavior**: Flow logs startup, configuration messages, and errors to stdout/stderr (configurable via `RUST_LOG`).
+**Current behavior**: Flow logs startup, configuration messages, and errors to stdout by default (level and file output are configurable — see [Configuration](configuration.md#loggingapp-log)).
 
 **What's logged today**:
 - Startup and configuration messages
@@ -177,7 +177,7 @@ upstream {
 
 Until these features ship, use:
 - `timing-header` filter for per-request latency in response headers
-- `RUST_LOG=debug` for startup diagnostics
+- `--log-level debug` for startup diagnostics
 - External observability tools (APM agents, service mesh) for fleet-wide visibility
 
 **See**: [Operations](operations.md) for current logging configuration and planned features.

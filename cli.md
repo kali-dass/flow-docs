@@ -22,6 +22,7 @@ Options:
       --upgrade-socket <UPGRADE_SOCKET>          Path to the upgrade socket
       --pidfile <PIDFILE>                        Path to the pidfile, used for upgrade
       --license-file <LICENSE_FILE>               Path to the signed license file [env: FLOW_LICENSE_FILE]
+      --log-level <LOG_LEVEL>                     Application log level: error, warn, info, debug, or trace
   -h, --help                                     Print help
 ```
 
@@ -149,6 +150,23 @@ If omitted, Flow falls back to the `FLOW_LICENSE_FILE` environment variable, and
 also unset, to `./license.json` in the current directory. See [Licensing](license.md) for the
 full precedence order, exactly what gets checked, and what the failure messages mean.
 
+## `--log-level <LEVEL>`
+
+Overrides the application log level for this invocation. One of `error`, `warn`, `info`,
+`debug`, or `trace`.
+
+```bash
+flow --config-kdl config.kdl --log-level debug
+```
+
+Overrides `system.logging.app-log.level` in the config file when given — a "Value" setting,
+same rule as `--threads-per-service` (see [How the command line and the config file
+interact](#how-the-command-line-and-the-config-file-interact) below). If neither this flag nor
+the config file sets a level, Flow defaults to `info`.
+
+This flag and `system.logging.app-log.level` are the only two ways to control the level — see
+[Logging](#logging) below.
+
 ---
 
 ## How the command line and the config file interact
@@ -157,7 +175,7 @@ This is worth understanding, because it is **not** a simple "the CLI wins" rule.
 
 ### Values: the CLI replaces the file
 
-`--threads-per-service` overrides whatever the config file says.
+`--threads-per-service` and `--log-level` override whatever the config file says.
 
 ### Switches: the CLI can only turn things **on**
 
@@ -296,13 +314,20 @@ kill -SIGQUIT <old_pid>
 
 ## Logging
 
-Flow writes to stdout. Control the level with the `RUST_LOG` environment variable:
+Flow writes to stdout by default. Control the level with `--log-level` or
+`system.logging.app-log.level` in the config file:
 
 ```bash
-RUST_LOG=info flow --config-kdl config.kdl     # default
-RUST_LOG=debug flow --config-kdl config.kdl    # verbose
-RUST_LOG=warn flow --config-kdl config.kdl     # quiet
+flow --config-kdl config.kdl --log-level info     # default
+flow --config-kdl config.kdl --log-level debug    # verbose
+flow --config-kdl config.kdl --log-level warn     # quiet
 ```
+
+To redirect logs to a file instead of stdout (useful once you background the process — stdout
+otherwise has nowhere useful to go), set `output "file"` and `log-dir` in
+`system.logging.app-log`. See [Configuration](configuration.md#system-block) for the full
+`logging` block reference, and [Operations](operations.md#running-in-the-background) for why
+this matters with `--daemonize`.
 
 At startup Flow logs each service it configures and warns about risky settings — a connector
 with certificate verification disabled, a cleartext upstream, or a tuning option set on a

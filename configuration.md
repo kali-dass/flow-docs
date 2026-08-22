@@ -78,6 +78,15 @@ system {
     pid-file "/tmp/flow.pidfile"
     upgrade-socket "/tmp/flow-upgrade.sock"
     // ca-file "./config/ca/upstream-ca.crt"
+
+    logging {
+        app-log {
+            level "info"
+            output "stdout"
+            // output "file"
+            // log-dir "/var/log/flow"
+        }
+    }
 }
 ```
 
@@ -88,6 +97,21 @@ system {
 | `pid-file` | Absolute path to the PID file used when daemonizing. |
 | `upgrade-socket` | Absolute path to the Unix socket used for zero-downtime upgrades. See [Operations](operations.md). |
 | `ca-file` | A CA bundle trusted for **all** outgoing upstream TLS connections. Use when every upstream shares one private CA. For per-upstream CAs, use `ca-cert-path` on the connector instead. |
+
+### `logging.app-log`
+
+Flow's own application log — startup, config validation, warnings, errors, upgrade events.
+Not per-request access logging (Flow doesn't have that yet).
+
+| Setting | Meaning |
+|---|---|
+| `level` | One of `error`, `warn`, `info`, `debug`, `trace`. Defaults to `info`. Overridable per-invocation with `--log-level`. |
+| `output` | `"stdout"` (default) or `"file"`. |
+| `log-dir` | A **directory** (not a file path) Flow writes `flow-application.log` into. Required when `output` is `"file"`; rejected if set while `output` is `"stdout"`. |
+
+Use `output "file"` when you background Flow with `--daemonize` — otherwise logs keep going to
+stdout, which has nowhere useful to go once the process is detached. See
+[Operations](operations.md#running-in-the-background).
 
 > `upgrade` is deliberately **not** settable in the file — it must be passed on the CLI.
 

@@ -43,6 +43,27 @@ system {
 If you're running under systemd, Docker, or another supervisor, leave `daemonize false` and
 let the supervisor manage the process — that's the usual choice.
 
+**Also redirect logs to a file when you daemonize.** `daemonize` detaches the *process*, but
+logs still go to stdout by default, which has nowhere useful to go once nothing is reading it —
+set `output "file"` so logs actually land somewhere:
+
+```kdl
+system {
+    daemonize true
+    pid-file "/var/run/flow.pid"
+
+    logging {
+        app-log {
+            output "file"
+            log-dir "/var/log/flow"
+        }
+    }
+}
+```
+
+Flow writes to `<log-dir>/flow-application.log`. See [Configuration](configuration.md#loggingapp-log)
+for the full `logging.app-log` reference.
+
 ---
 
 ## Zero-downtime upgrades
@@ -114,11 +135,15 @@ zero-downtime result using the orchestration you already have.
 
 ## Logging
 
-Flow logs to stdout using `tracing`. Set the level with `RUST_LOG`:
+Flow logs to stdout by default. Set the level with `--log-level` or `system.logging.app-log.level`:
 
 ```bash
-RUST_LOG=info flow --config-kdl config.kdl
+flow --config-kdl config.kdl --log-level info
 ```
+
+See [Configuration](configuration.md#loggingapp-log) for the full `logging.app-log` reference,
+including redirecting to a file — worth doing if you're also using `daemonize` (see
+[above](#running-in-the-background)).
 
 Startup logs report each service being configured, its listeners, and any warnings — for
 example, if a connector sets a tuning option that its protocol doesn't use.
@@ -139,7 +164,7 @@ whether you want to expose internal timing to clients, not for performance. See
 
 ### Planned: Comprehensive Logging & Observability
 
-Flow's current logging is basic — startup messages and `RUST_LOG` level control only. Comprehensive observability features are **planned for future releases**:
+Flow's current logging is basic — startup messages with a configurable level and output only. Comprehensive observability features are **planned for future releases**:
 
 - **Access logs** — structured JSON request/response logs (one per request), sampled or filtered to avoid overwhelming disk I/O
 - **Metrics** — in-process histograms (latency, throughput, errors) exposed on a `/metrics` endpoint for Prometheus scraping
@@ -148,7 +173,7 @@ Flow's current logging is basic — startup messages and `RUST_LOG` level contro
 
 Until then, rely on:
 - Response headers (via `timing-header` filter) for per-request latency
-- `RUST_LOG=debug` for startup diagnostics
+- `--log-level debug` for startup diagnostics
 - External observability tools (load balancers, service mesh, APM agents) for fleet-wide visibility
 
 ---

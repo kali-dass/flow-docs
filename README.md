@@ -27,7 +27,7 @@ Choose where to start based on what you need:
 ### Reference
 | Guide | What it covers |
 |---|---|
-| [Configuration](configuration.md) | Full KDL reference — system, services, listeners, connectors |
+| [Configuration](configuration.md) | Full KDL reference — system, logging, services, listeners, connectors |
 | [Command line](cli.md) | Every flag, and how the CLI and config file interact |
 | [Routing](routing.md) | Matching requests to routes, and how ties are broken |
 | [Protocols](protocols.md) | HTTP/1.1, HTTP/2, h2c — technical details and performance |
