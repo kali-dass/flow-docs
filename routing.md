@@ -73,6 +73,20 @@ match { sni-suffix ".internal.example.com" }
 
 Matches `payments.internal.example.com`, `auth.internal.example.com`, and so on.
 
+### Implicit AND — multiple matchers in one `match` block
+
+When a `match` block contains more than one matcher node directly (without `all` or `any`),
+Flow treats them as an implicit AND — every matcher must match.
+
+```kdl
+match {
+    path-prefix "/secure/data"
+    header name="Authorization" value-regex="^Bearer .+$"
+}
+```
+
+This is shorthand for the explicit `all {}` form below. Both behave identically.
+
 ### `all` — logical AND
 
 Every sub-matcher must match. Scores are **summed**.

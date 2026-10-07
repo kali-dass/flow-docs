@@ -45,6 +45,10 @@ the second occurrence.
 |---|---|---|
 | Top level | `system`, `services` | — |
 | `system` | `threads-per-service`, `daemonize`, `pid-file`, `upgrade-socket`, `ca-file` | — |
+| `system.logging` | `app-log` | — |
+| `system.logging.app-log` | `level`, `output`, `log-dir` | — |
+| `system.logging.access-log` | *(reserved — content ignored)* | — |
+| `system.dns-resolver` | `ndots`, `timeout-secs`, `attempts` | `nameserver`, `search-domain` |
 | `services` | — | named service blocks |
 | A service | `listeners`, `routes`, `path-control`, `route-cache-dynamic-capacity`, `keepalive-timeout-secs` | — |
 | `listeners` | — | listener address lines |
@@ -87,6 +91,8 @@ system {
             // log-dir "/var/log/flow"
         }
     }
+
+    // dns-resolver { ... }   // see DNS discovery below
 }
 ```
 
@@ -118,6 +124,13 @@ stdout, which has nowhere useful to go once the process is detached. See
 > The **license file** is also not part of this block — like `upgrade`, it's CLI/environment
 > only (`--license-file` / `FLOW_LICENSE_FILE`). See [Licensing](license.md).
 
+### `logging.access-log` (reserved)
+
+An `access-log` block may appear inside `logging` — Flow accepts it without error, but does
+not yet read or act on anything inside it. Per-request access logging is not implemented.
+The name is reserved so configs that include it now will not need to be changed when the
+feature ships.
+
 ---
 
 ## `services` block
@@ -141,7 +154,7 @@ services {
 | Setting | Default | Meaning |
 |---|---|---|
 | `route-cache-dynamic-capacity` | 10000 | Max entries in this service's dynamic route cache. |
-| `keepalive-timeout-secs` | 60 | How long an idle **downstream** (client) connection is held open. |
+| `keepalive-timeout-secs` | 60 | How long an idle **downstream** (client) H1 connection is held open waiting for the next request. `0` means no cap — defer entirely to the client's `Keep-Alive` header. No effect on H2 connections. |
 
 ---
 
@@ -337,10 +350,88 @@ connectors {
 
 | `selection` | Behavior |
 |---|---|
-| `RoundRobin` | Even rotation across upstreams |
-| `Random` | Uniform random pick |
-| `FVNHash` | FNV hash of the selector key — sticky |
-| `KetamaHashing` | Consistent hashing — sticky, stable under membership change |
+| `"RoundRobin"` | Even rotation across upstreams |
+| `"Random"` | Uniform random pick |
+| `"FNV"` | FNV hash of the selector key — sticky |
+| `"Ketama"` | Consistent hashing — sticky, stable under membership change |
+
+For `"FNV"` and `"Ketama"`, add a `key` attribute to `selection` to control what is hashed:
+
+```kdl
+selection "Ketama" key="UriPath"
+```
+
+| `key` | Hashed on |
+|---|---|
+| `UriPath` | Request URI path |
+| `SourceAddrAndUriPath` | Client IP + URI path |
+
+### Discovery
+
+`discovery` controls how Flow builds and maintains the upstream backend pool.
+
+| `discovery` | Behavior |
+|---|---|
+| `"Static"` | Fixed set of backends for the life of the process. IP addresses are used as-is. Hostname connectors are resolved **once at startup** via the OS resolver and only the **first A record** is kept — subsequent records and any future DNS changes are ignored until restart. No background work. |
+| `"Dns"` | Periodic DNS re-resolution. Flow resolves the connector hostname on startup and re-resolves it at the interval set by `dns-interval-secs` (default `30`). The backend pool is updated automatically when the address changes — no restart needed. |
+
+**When is each used?**
+
+Flow auto-detects the right mode from the connector address:
+- An IP address (e.g. `"10.0.0.1:3000"`) → `Static`
+- A hostname (e.g. `"backend.internal:443"`) → `Dns`
+
+You can override the auto-detection by writing `discovery` explicitly in the `load-balance` block. The most common reason to do this is `discovery "Static"` with a hostname when you want a single stable connection target resolved once at startup (e.g. a well-known external host like `httpbin.org` whose IP rarely changes). Only the first A record is used — if you need resiliency across multiple IPs or automatic failover when an address changes, use `discovery "Dns"` instead.
+
+```kdl
+connectors {
+    load-balance {
+        selection "RoundRobin"
+        discovery "Static"      // force static even though the address is a hostname
+        health-check "None"
+    }
+    "httpbin.org:443" tls-sni="httpbin.org" proto="h2-or-h1"
+}
+```
+
+For DNS discovery, use a hostname connector with an optional `dns-interval-secs` attribute:
+
+```kdl
+connectors {
+    load-balance {
+        selection "RoundRobin"
+        discovery "Dns"         // explicit, or omit to auto-detect from the hostname
+        health-check "None"
+    }
+    "catalog.internal:443" proto="h2-or-h1" dns-interval-secs=30
+    // tls-sni defaults to the hostname ("catalog.internal") — only set it
+    // explicitly when you need a different SNI value.
+}
+```
+
+**System DNS resolver** — Flow uses `/etc/resolv.conf` by default (correct for Kubernetes, Docker, and bare-metal). To override, add a `dns-resolver` block to `system`:
+
+```kdl
+system {
+    dns-resolver {
+        nameserver "10.96.0.10:53"        // Kubernetes CoreDNS
+        nameserver "8.8.8.8:53"           // fallback
+        search-domain "svc.cluster.local"
+        search-domain "cluster.local"
+        ndots 5
+        timeout-secs 5
+        attempts 2
+    }
+}
+```
+
+| Setting | Repeats | Default | Meaning |
+|---|---|---|---|
+| `nameserver` | yes | *(system)* | DNS server to query, as `IP:port`. Replaces the system resolver entirely when set. Provide at least two for redundancy. |
+| `search-domain` | yes | *(system)* | Search domain appended when a bare hostname does not resolve. Equivalent to `search` in `/etc/resolv.conf`. |
+| `ndots` | no | 5 | Dots in a name below which search domains are tried first before a global lookup. Mirrors the `ndots` option in `/etc/resolv.conf`. |
+| `timeout-secs` | no | 5 | Per-query timeout in seconds before the resolver retries or fails. |
+| `attempts` | no | 2 | Number of retry attempts per DNS query before returning a failure. |
 
 Health checking is **not yet implemented** (`health-check "None"`).
 

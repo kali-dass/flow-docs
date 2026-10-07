@@ -16,6 +16,7 @@ flow --config-kdl /etc/flow/config.kdl
 Options:
       --config-kdl <CONFIG_KDL>                  Path to the configuration file in KDL format
       --validate-configs                         Validate all configuration data and exit
+      --validate-configs-with-network            Also check live network endpoints during validation
       --threads-per-service <THREADS_PER_SERVICE>  Worker threads per service
       --daemonize                                Run in the background after starting
       --upgrade                                  Take over an existing server's listeners
@@ -65,6 +66,19 @@ Use it:
   unreadable CA file that a syntax check on your laptop would miss.
 
 This is the cheapest way to avoid a failed rollout.
+
+## `--validate-configs-with-network`
+
+Extends `--validate-configs` to also perform checks that require live network access — for
+example, fetching JWKS endpoints to verify they are reachable and return valid key sets.
+
+```bash
+flow --config-kdl /etc/flow/config.kdl --validate-configs --validate-configs-with-network
+```
+
+Has no effect without `--validate-configs`: a normal startup always performs these checks
+anyway. Use it in CI environments that have outbound network access and want to catch
+unreachable endpoints before deploying.
 
 ## `--threads-per-service <N>`
 
