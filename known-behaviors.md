@@ -123,7 +123,7 @@ upstream {
 
 **Why this matters**:
 - Large file uploads/downloads don't consume proportional memory
-- No request size limit (unlimited file uploads)
+- No request size limit today (unlimited file uploads) — request and response size limits are planned for API Gateway Phase 1
 - Latency is low (streaming starts immediately)
 
 **Caveats**:

@@ -42,13 +42,13 @@ For "Is Flow right for us?" — clarification on scope for evaluating whether Fl
 - Not a load balancer (no health checking; **planned for future**)
 - Not a WAF
 - Not a cache
-- Not a full API Gateway today (no versioning, no per-user rate limiting, no transformation; **planned for future**)
+- Not a full API Gateway today (per-user rate limiting, transformation, caching, CORS, circuit breaking, and more are **planned for API Gateway Phase 1**)
 
 ---
 
 ## Quick Answers
 
-**Can Flow cache responses?** No. Flow is a pass-through proxy, not a cache. Use a caching layer (CDN, Varnish, etc.) upstream if needed.
+**Can Flow cache responses?** Not yet. Response caching is planned for API Gateway Phase 1 (TTL-based, `Cache-Control` aware). Until then, use a caching layer (CDN, Varnish, etc.) upstream if needed.
 
 **Can Flow do gRPC?** It can proxy gRPC traffic (gRPC uses HTTP/2), but we haven't validated it against real gRPC traffic yet. See [gRPC](not-yet-supported.md#grpc).
 

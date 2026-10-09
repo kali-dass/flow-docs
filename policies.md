@@ -10,14 +10,14 @@ Flow. They are declared in a `path-control` block.
 
 ## Available policies
 
-| Policy | What it does |
-|---|---|
-| [Block CIDR range](policies/block-cidr-range.md) | Reject requests from given IP ranges |
-| [Rate limiting](policies/rate-limiting.md) | Cap request rates — globally, per client IP, or per URI |
-| [JWT validation](policies/jwt-validate.md) | Verify a bearer/cookie/query JWT against JWKS or a static key before routing |
-| [Upsert header](policies/upsert-header.md) | Set a header on the request or the response |
-| [Remove header](policies/remove-header-key-regex.md) | Strip headers whose name matches a pattern |
-| [Timing header](policies/timing-header.md) | Add latency timing headers to the response |
+| Category | Policy | What it does |
+|---|---|---|
+| Authentication | [Token authentication](policies/token-auth.md) | Verify a bearer/cookie/query token — JWT (JWKS or static key) or opaque token via RFC 7662 introspection |
+| Security | [Block CIDR range](policies/block-cidr-range.md) | Reject requests from given IP ranges |
+| Traffic Control | [Rate limiting](policies/rate-limiting.md) | Cap request rates — globally, per client IP, or per URI |
+| Transformation | [Upsert header](policies/upsert-header.md) | Set a header on the request or the response |
+| Transformation | [Remove header](policies/remove-header-key-regex.md) | Strip headers whose name matches a pattern |
+| Observability | [Timing header](policies/timing-header.md) | Add latency timing headers to the response |
 
 ## Where policies attach
 
@@ -112,7 +112,7 @@ services {
                 match { path-prefix "/api" }
                 path-control {
                     request-filters {
-                        filter kind="jwt-validate" {
+                        filter kind="token-auth" {
                             issuers {
                                 issuer name="https://idp.example.com" \
                                     jwks-uri="https://idp.example.com/.well-known/jwks.json" \
@@ -132,12 +132,12 @@ A request to `/api` is checked in exactly this order:
 
 1. Routed to this `route` (path-prefix `/api` matches) and its protocol checked.
 2. **`block-cidr-range`** (service level, written first) — a client IP in `203.0.113.0/24` is
-   rejected here. `rate-limit-multi-source-ip` and `jwt-validate` never run for that request —
+   rejected here. `rate-limit-multi-source-ip` and `token-auth` never run for that request —
    an attacker in the blocked range never even gets to try presenting a token.
 3. **`rate-limit-multi-source-ip`** (service level, written second) — only reached if the IP
-   wasn't blocked. A client over its quota is rejected here; `jwt-validate` still never runs —
+   wasn't blocked. A client over its quota is rejected here; `token-auth` still never runs —
    Flow never bothers verifying a token for a request it's about to rate-limit anyway.
-4. **`jwt-validate`** (route level) — only reached once both service-level filters passed.
+4. **`token-auth`** (route level) — only reached once both service-level filters passed.
    Missing/invalid token → `401`/`503` here, and the request never reaches your backend.
 
 Only a request that clears all three — not CIDR-blocked, not rate-limited, and carrying a valid
@@ -145,7 +145,7 @@ token — reaches `upstream-request`/`upstream-response` phase filters and then 
 
 **Ordering has real cost implications.** Putting cheap, high-rejection-rate checks first (an IP
 block list, a rate limiter) means expensive checks (JWT signature verification, especially
-RSA/ECDSA) never run for traffic that was going to be rejected anyway. Putting `jwt-validate`
+RSA/ECDSA) never run for traffic that was going to be rejected anyway. Putting `token-auth`
 first instead would mean verifying a signature for every request, even ones from an IP you were
 always going to block — usually wasted work. There's no automatic reordering by cost; this is a
 config choice you make by write order.

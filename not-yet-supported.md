@@ -52,7 +52,8 @@ Flow has no built-in health checking. If a backend becomes unhealthy or goes dow
 - For traditional deployments, external load balancers or DNS often provide health checking
 
 **Future roadmap**:
-- Passive health checking (fail-open on repeated connection errors) may be considered before full active health checking
+- Active health checking is planned for API Gateway Phase 1
+- Circuit breaking (trip a failing upstream out of rotation automatically) is also planned for Phase 1 and provides passive failure-based exclusion without periodic probes
 
 ---
 

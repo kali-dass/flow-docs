@@ -1,20 +1,23 @@
-# JWT validation
+# Token authentication
 
-Verifies a JSON Web Token (JWT) on incoming requests before they reach your backend. Supports
-multiple issuers on one route, JWTs verified against a live JWKS endpoint *or* a key pinned to
-a local file, and enforces algorithm/audience/expiry/custom-claim rules.
+Verifies a bearer token on incoming requests before they reach your backend. Two modes:
+
+- **`jwt`** (default) — validates a JSON Web Token (JWT) locally against a JWKS endpoint or a
+  pinned key file. Supports multiple issuers, algorithm pinning, audience/expiry/claim checks.
+- **`introspection`** — sends an opaque token to a remote RFC 7662 introspection endpoint and
+  accepts it only if the endpoint returns `active: true`.
 
 **Phase:** `request-filters`
 
-> **Pre-release note.** `jwt-validate` is new. Config syntax and defaults may still change —
+> **Pre-release note.** `token-auth` is new. Config syntax and defaults may still change —
 > see the pre-release notice at the top of the [documentation home](../README.md).
 
-## Quick example
+## Quick example — JWT mode
 
 ```kdl
 path-control {
     request-filters {
-        filter kind="jwt-validate" {
+        filter kind="token-auth" {
             issuers {
                 issuer name="https://idp.example.com" \
                     jwks-uri="https://idp.example.com/.well-known/jwks.json" \
@@ -25,11 +28,29 @@ path-control {
 }
 ```
 
-This is the minimum viable config: one issuer, keys fetched live from a JWKS endpoint and kept
-fresh automatically. A request without a valid `Bearer` token in `Authorization` is rejected
-with `401`; a valid one proceeds to your backend.
+Minimum viable config: one issuer, keys fetched live from a JWKS endpoint and kept fresh
+automatically. A request without a valid `Bearer` token in `Authorization` is rejected with
+`401`; a valid one proceeds to your backend.
 
-## How it works, in order
+## Quick example — introspection mode
+
+```kdl
+path-control {
+    request-filters {
+        filter kind="token-auth" mode="introspection" \
+            introspection-uri="https://idp.example.com/oauth/introspect" \
+            client-id="flow-gateway" \
+            client-secret-env="FLOW_IDP_SECRET"
+    }
+}
+```
+
+Flow POSTs the opaque token to the introspection endpoint using HTTP Basic auth. The endpoint
+returns JSON; Flow accepts the token only if `"active": true` is in the response.
+
+---
+
+## How JWT mode works, in order
 
 1. **Extract** the token from wherever you've configured (`Authorization` header by default).
 2. **Peek** the token's `iss` claim — *without* verifying the signature yet — to pick which
@@ -40,12 +61,12 @@ with `401`; a valid one proceeds to your backend.
    whatever the token itself claims (see [Why algorithm is pinned](#why-algorithm-is-pinned)).
 5. **Check claims** — `exp`, `nbf`, `iss` (for real this time), `aud` if configured, and any
    `required-claims`.
-6. On success, the token's claims become available to policies that run later in the request
-   (subject, issuer, and the full claim set).
+6. On success, the verified identity (client ID, tenant, scopes, roles) is available to
+   downstream policies in the request pipeline.
 
 A request that fails any step gets `401` (`invalid_token`, `invalid_request`, or plain
 `Unauthorized` depending on which check failed — see [Responses](#responses)) or, if the
-*issuer's key source itself* is unavailable, `503`.
+issuer's key source itself is unavailable, `503`.
 
 ---
 
@@ -56,13 +77,13 @@ Exactly **one** of these three — set more than one and the filter fails to loa
 ### `token-header-names` (default)
 
 ```kdl
-filter kind="jwt-validate" token-header-names="authorization" { issuers { ... } }
+filter kind="token-auth" token-header-names="authorization" { issuers { ... } }
 ```
 
 Comma-separate for more than one header:
 
 ```kdl
-filter kind="jwt-validate" token-header-names="authorization,x-api-token" { issuers { ... } }
+filter kind="token-auth" token-header-names="authorization,x-api-token" { issuers { ... } }
 ```
 
 **This isn't a preference order (first found wins) — every listed header is checked, and the
@@ -87,7 +108,7 @@ If you don't set any of the three source options, this is what you get, with
 ### `token-cookie-names`
 
 ```kdl
-filter kind="jwt-validate" token-cookie-names="session_jwt" { issuers { ... } }
+filter kind="token-auth" token-cookie-names="session_jwt" { issuers { ... } }
 ```
 
 For browser-session-style auth where the token lives in a cookie instead of a header.
@@ -101,7 +122,7 @@ For browser-session-style auth where the token lives in a cookie instead of a he
 ### `token-query-names`
 
 ```kdl
-filter kind="jwt-validate" token-query-names="jwt" { issuers { ... } }
+filter kind="token-auth" token-query-names="jwt" { issuers { ... } }
 ```
 
 For clients that can't set headers or cookies at all.
@@ -116,7 +137,7 @@ Only valid alongside `token-header-names` (cookies and query params carry the ba
 scheme prefix — setting this with either of those is rejected).
 
 ```kdl
-filter kind="jwt-validate" token-header-names="authorization" token-scheme="Bearer" { issuers { ... } }
+filter kind="token-auth" token-header-names="authorization" token-scheme="Bearer" { issuers { ... } }
 ```
 
 `Bearer` is the default — you don't need to set it for the standard case. The match is
@@ -126,7 +147,7 @@ case-insensitive (`bearer`, `BEARER`, `Bearer` all work), per RFC 7235.
 JWT directly in `Authorization`, with no `Bearer ` in front):
 
 ```kdl
-filter kind="jwt-validate" token-header-names="authorization" token-scheme="none" { issuers { ... } }
+filter kind="token-auth" token-header-names="authorization" token-scheme="none" { issuers { ... } }
 ```
 
 `token-scheme=""` (empty string) is rejected — it's ambiguous whether that's a deliberate
@@ -134,7 +155,7 @@ filter kind="jwt-validate" token-header-names="authorization" token-scheme="none
 
 ---
 
-## Claim checks (apply to every issuer)
+## Claim checks (apply to every issuer, JWT mode only)
 
 ### `leeway-secs`
 
@@ -143,7 +164,7 @@ few seconds, this widens the boundary so a token isn't rejected for being techni
 seconds early/late.
 
 ```kdl
-filter kind="jwt-validate" leeway-secs=30 { issuers { ... } }
+filter kind="token-auth" leeway-secs=30 { issuers { ... } }
 ```
 
 Default `0`. Capped at `300` (5 minutes) — a larger value is rejected, so a typo can't turn
@@ -171,7 +192,7 @@ long-lived token, without needing anything from the IdP.
 **Worked example** — a token with a 24-hour lifetime, `max-expiration-secs=3600` (1 hour):
 
 ```kdl
-filter kind="jwt-validate" max-expiration-secs=3600 { issuers { ... } }
+filter kind="token-auth" max-expiration-secs=3600 { issuers { ... } }
 ```
 
 | Token issued at | Token's own `exp` | Request arrives at | Remaining (`exp − now`) | Result |
@@ -191,7 +212,7 @@ life.
 long as it hasn't hit its own `exp`):
 
 ```kdl
-filter kind="jwt-validate" max-expiration-secs="none" { issuers { ... } }
+filter kind="token-auth" max-expiration-secs="none" { issuers { ... } }
 ```
 
 This is also the default if you don't set `max-expiration-secs` at all — most deployments where
@@ -211,7 +232,7 @@ specific value, like "the `scope` claim must equal `abc`" or "must contain `abc`
 non-null value passes, whatever it is.
 
 ```kdl
-filter kind="jwt-validate" required-claims="scope,tenant_id" { issuers { ... } }
+filter kind="token-auth" required-claims="scope,tenant_id" { issuers { ... } }
 ```
 
 With this config:
@@ -235,7 +256,7 @@ value-matching via the separate [`audience`](#audience) setting on each issuer.
 ### `skip-preflight`
 
 ```kdl
-filter kind="jwt-validate" skip-preflight=true { issuers { ... } }
+filter kind="token-auth" skip-preflight=true { issuers { ... } }
 ```
 
 When `true`, a browser CORS preflight request (`OPTIONS` carrying
@@ -250,7 +271,66 @@ enable it.
 
 ---
 
-## JWKS behavior (applies to every JWKS-sourced issuer in this filter)
+## Identity extraction
+
+After a successful verification, Flow extracts these fields from the token claims and makes them
+available to downstream policies in the request pipeline.
+
+| Filter field | Claim read | Default claim name | Notes |
+|---|---|---|---|
+| `client_id` | `client-id-claim` | `sub` | Principal identifier |
+| `tenant_id` | `tenant-id-claim` | *(not extracted)* | Set to extract |
+| `scopes` | `scopes-claim` | *(not extracted)* | Space-separated string or JSON array |
+| `roles` | `roles-claim` | *(not extracted)* | JSON array |
+| `groups` | `groups` (hardcoded) | *(not extracted if claim absent)* | JSON array |
+| `token_id` | `jti` (hardcoded) | *(not extracted if claim absent)* | JWT ID |
+
+```kdl
+filter kind="token-auth" client-id-claim="azp" tenant-id-claim="org_id" scopes-claim="scope" {
+    issuers { ... }
+}
+```
+
+### `expose-claims`
+
+```kdl
+filter kind="token-auth" expose-claims=true { issuers { ... } }
+```
+
+When `true`, the full raw claim set from the verified token is made available to downstream
+policies. Default `false` — opt-in only, because raw claims in the request context are a
+data-leakage surface if a downstream policy accidentally forwards them upstream.
+
+### `realm`
+
+```kdl
+filter kind="token-auth" realm="orders-api" { issuers { ... } }
+```
+
+The `realm` value used in `WWW-Authenticate: Bearer realm="..."` headers on 401 responses.
+Default: the first configured issuer's `name` value. Set this when you want a human-readable
+service name in the challenge rather than the issuer URL.
+
+---
+
+## Token forwarding
+
+### `strip-token`
+
+```kdl
+filter kind="token-auth" strip-token=false { issuers { ... } }
+```
+
+Default `true`: after successful verification, Flow removes the token header(s) from the request
+before forwarding to your backend. Set to `false` when your backend independently validates the
+token itself (e.g. it performs its own JWT parsing or secondary authorization check).
+
+Only applies to `token-header-names`-sourced tokens — tokens carried in a cookie or query
+parameter are never stripped (removing them there would require rewriting the cookie or URL).
+
+---
+
+## JWKS behavior (applies to every JWKS-sourced issuer in this filter, JWT mode)
 
 These control how Flow fetches and refreshes keys for any issuer using `jwks-uri` (not
 static-key issuers — they have no fetch to schedule).
@@ -260,7 +340,7 @@ static-key issuers — they have no fetch to schedule).
 How often Flow re-fetches the JWKS document on its normal schedule.
 
 ```kdl
-filter kind="jwt-validate" jwks-refresh-secs=300 { issuers { ... } }
+filter kind="token-auth" jwks-refresh-secs=300 { issuers { ... } }
 ```
 
 Default `300` (5 minutes).
@@ -274,7 +354,7 @@ refresh *before* the next scheduled one, so a real rotation resolves faster than
 flood of requests carrying bogus `kid`s can't turn into a flood of requests at your IdP.
 
 ```kdl
-filter kind="jwt-validate" jwks-min-refresh-secs=180 { issuers { ... } }
+filter kind="token-auth" jwks-min-refresh-secs=180 { issuers { ... } }
 ```
 
 Default `180` (3 minutes) — smaller than `jwks-refresh-secs`'s default, so a genuine rotation
@@ -287,7 +367,7 @@ up to this many seconds past that last success. Past this window, Flow stops tru
 keys (see [Staleness → 503](#staleness--503)).
 
 ```kdl
-filter kind="jwt-validate" jwks-max-stale-secs=3600 { issuers { ... } }
+filter kind="token-auth" jwks-max-stale-secs=3600 { issuers { ... } }
 ```
 
 Default `3600` (1 hour). Longer tolerates a longer IdP outage without disrupting your traffic;
@@ -298,7 +378,7 @@ which matters more for your deployment.
 ### `jwks-required-at-startup`
 
 ```kdl
-filter kind="jwt-validate" jwks-required-at-startup=false { issuers { ... } }
+filter kind="token-auth" jwks-required-at-startup=false { issuers { ... } }
 ```
 
 Default `true`: if the *very first* JWKS fetch (at Flow startup) fails for any issuer, Flow
@@ -318,7 +398,7 @@ measurably expensive at high request rates — the cache is what keeps that cost
 hot path for repeat traffic.
 
 ```kdl
-filter kind="jwt-validate" jwks-verify-cache-size=10000 { issuers { ... } }
+filter kind="token-auth" jwks-verify-cache-size=10000 { issuers { ... } }
 ```
 
 Default `10000` entries. This is a cap on *entries*, not bytes. `0` is rejected — the
@@ -326,13 +406,13 @@ verification cache can't be disabled (see the note in [Performance notes](#perfo
 
 ---
 
-## Per-issuer settings
+## Per-issuer settings (JWT mode)
 
 Everything above is filter-wide. These live inside each `issuer { }` entry — a filter can have
 more than one issuer, and each can independently use JWKS or a static key.
 
 ```kdl
-filter kind="jwt-validate" {
+filter kind="token-auth" {
     issuers {
         issuer name="https://idp-a.example.com" jwks-uri="https://idp-a.example.com/keys" algorithm="RS256"
         issuer name="https://idp-b.example.com" hmac-secret-path="/etc/flow/keys/b.secret" algorithm="HS256"
@@ -441,22 +521,58 @@ token's `aud` claim contains — checked as sets, not compared as an ordered/exa
 | `"api.example.com,api-internal.example.com"` | `"billing.example.com"` | **Rejected** — no overlap with either configured value |
 | `"api.example.com"` | *(no `aud` claim in the token at all)* | **Rejected** — `audience` configured but claim absent |
 
-So `audience="api.example.com,api-internal.example.com"` reads as "this route accepts tokens
-scoped to `api.example.com` *or* `api-internal.example.com`" — useful when the same issuer mints
-tokens for more than one downstream service and you want this route to accept tokens meant for
-either. It does **not** mean the token must list both audiences at once.
-
 If `audience` is left unset entirely, `aud` isn't checked at all for this issuer — an explicit
 choice, not an oversight; leave it off only if you genuinely don't need audience scoping.
 
 ---
 
+## Introspection mode settings
+
+Used only when `mode="introspection"`. Do **not** set an `issuers` block in this mode —
+the remote endpoint is the authority on the token, not a local key.
+
+### `introspection-uri` (required)
+
+```kdl
+filter kind="token-auth" mode="introspection" \
+    introspection-uri="https://idp.example.com/oauth/introspect" \
+    client-id="flow-gateway" client-secret-env="FLOW_IDP_SECRET"
+```
+
+The RFC 7662 introspection endpoint URL. Flow POSTs `token=<token>` as
+`application/x-www-form-urlencoded` with HTTP Basic auth (`client-id` / `client-secret`).
+
+### `client-id` (required in introspection mode)
+
+The OAuth2 client ID Flow presents to the introspection endpoint. Stored in config.
+
+### `client-secret-env` (required in introspection mode)
+
+The name of an environment variable that holds the client secret. Never stored directly in the
+config file — Flow reads it at startup from the environment.
+
+```bash
+FLOW_IDP_SECRET=my-secret flow --config-kdl config.kdl
+```
+
+### `cache-ttl-secs`
+
+How many seconds a positive introspection result is cached, keyed by a hash of the token.
+Default `30`. Set lower for faster revocation propagation; set higher to reduce load on the
+introspection endpoint at high request rates.
+
+```kdl
+filter kind="token-auth" mode="introspection" cache-ttl-secs=60 \
+    introspection-uri="..." client-id="..." client-secret-env="..."
+```
+
+---
+
 ## Multiple issuers sharing one `jwks-uri`
 
-If two different `jwt-validate` filters — even on different routes or services — configure an
+If two different `token-auth` filters — even on different routes or services — configure an
 issuer with the **same** `jwks-uri`, Flow shares one JWKS store and one fetch/refresh loop
-between them rather than running two independently. Sensible, since they're both talking about
-the same key material.
+between them rather than running two independently.
 
 Because of that sharing, both configurations must **agree**: same `algorithm`,
 `jwks-ca-cert-path`, `jwks-required-at-startup`, `jwks-refresh-secs`, `jwks-min-refresh-secs`,
@@ -480,10 +596,14 @@ was signed with.
 
 | Situation | Status | `WWW-Authenticate` |
 |---|---|---|
-| No token found in the configured source | `401` | `Bearer realm="flow"` |
-| More than one distinct token presented (e.g. different values in two configured header names) | `401` | `Bearer error="invalid_request"` |
-| Malformed token, unrecognized issuer, bad signature, expired, wrong audience, missing required claim, `max-expiration-secs` exceeded, unresolvable `kid` | `401` | `Bearer error="invalid_token"` |
-| The matched issuer's key source is stale or has never been successfully fetched | `503` | *(none)* |
+| No token found in the configured source | `401` | `Bearer realm="<realm>"` |
+| More than one distinct token presented (e.g. different values in two configured header names) | `401` | `Bearer realm="<realm>", error="invalid_request"` |
+| Malformed token, unrecognized issuer, bad signature, expired, wrong audience, missing required claim, `max-expiration-secs` exceeded, unresolvable `kid`; or introspection returned `active: false` | `401` | `Bearer realm="<realm>", error="invalid_token"` |
+| The matched issuer's key source is stale or has never been successfully fetched; or the introspection endpoint is unreachable | `503` | *(none)* |
+
+The `realm` value in the challenge comes from the `realm` config field (if set), or falls back
+to the first configured issuer's `name`, or `"api"` in introspection mode with no explicit
+realm.
 
 Two things worth knowing:
 
@@ -495,12 +615,12 @@ Two things worth knowing:
   malformed token and a token with a bad signature both come back as `error="invalid_token"`,
   "Bad token" — the *why* is only visible in Flow's own logs, so the response itself can't be
   used to probe which specific check failed.
-- **`503` means Flow's problem, not yours.** If the matched issuer's JWKS store is stale (see
-  `jwks-max-stale-secs`) or has never completed a fetch, Flow can't currently verify *any*
-  token for that issuer — including one that would otherwise be perfectly valid. Retrying a
-  request that hit a `503` may well succeed once the IdP is reachable again.
+- **`503` means Flow's problem, not yours.** If the matched issuer's JWKS store is stale or has
+  never completed a fetch (JWT mode), or the introspection endpoint is unreachable, Flow can't
+  currently verify any token. Retrying a request that hit a `503` may well succeed once the
+  dependency is reachable again.
 
-## Staleness → 503
+## Staleness → 503 (JWT mode)
 
 A JWKS-sourced issuer's keys are treated as "too old to trust" once `jwks-max-stale-secs` has
 passed since the last successful fetch — including if the *very first* fetch never succeeded.
@@ -525,24 +645,8 @@ some client patterns), the cache won't help much and RS*/PS*/ES* algorithms will
 what raw signature verification costs per request. HMAC algorithms (`HS*`) are comparatively
 cheap and less affected either way.
 
-## The token reaches your backend unchanged
-
-`jwt-validate` runs in the `request-filters` phase purely as a gate: it reads the token,
-verifies it, and either rejects the request or lets it through. It never removes, rewrites, or
-otherwise touches the header/cookie/query parameter the token came from. **Whatever the client
-originally sent — the raw JWT, in the same place — is exactly what reaches your backend.** If
-your backend independently needs to parse or re-verify the token, it can, since nothing about
-it changes in transit through Flow.
-
-## Not yet supported
-
-**Forwarding *decoded claims* to your backend as separate headers is not implemented yet.**
-There is currently no way to take a claim from the verified token (e.g. `sub`, `scope`) and
-inject it as its own header (e.g. `X-User-Id`) on the request Flow sends upstream — only the
-original, unparsed token passes through, as described above. If your backend wants
-Flow-provided identity without re-parsing the JWT itself, that's not available yet; this is
-planned, tracked in the roadmap alongside the other authentication work; see the
-[pre-release notice](../README.md).
+In introspection mode, Flow caches positive results by token hash for `cache-ttl-secs` (default
+30 s) — each cache hit avoids an outbound HTTP round-trip entirely.
 
 ## Trying it out
 
@@ -561,7 +665,7 @@ services {
                 connectors { "127.0.0.1:3000" }
                 path-control {
                     request-filters {
-                        filter kind="jwt-validate" {
+                        filter kind="token-auth" {
                             issuers {
                                 issuer name="https://idp.example.com" \
                                     hmac-secret-path="/etc/flow/keys/test.secret" \
