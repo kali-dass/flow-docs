@@ -14,7 +14,7 @@ Flow. They are declared in a `path-control` block.
 |---|---|---|
 | Authentication | [Token authentication](policies/token-auth.md) | Verify a bearer/cookie/query token — JWT (JWKS or static key) or opaque token via RFC 7662 introspection |
 | Security | [Block CIDR range](policies/block-cidr-range.md) | Reject requests from given IP ranges |
-| Traffic Control | [Rate limiting](policies/rate-limiting.md) | Cap request rates — globally, per client IP, or per URI |
+| Traffic Control | [Rate limiting](policies/rate-limiting.md) | Cap request rates — per IP, per client, per URI, or per custom dimension |
 | Transformation | [Upsert header](policies/upsert-header.md) | Set a header on the request or the response |
 | Transformation | [Remove header](policies/remove-header-key-regex.md) | Strip headers whose name matches a pattern |
 | Observability | [Timing header](policies/timing-header.md) | Add latency timing headers to the response |
@@ -103,7 +103,7 @@ services {
         path-control {
             request-filters {
                 filter kind="block-cidr-range" addrs="203.0.113.0/24"
-                filter kind="rate-limit-multi-source-ip" max-tokens=100 refill-qty=10 refill-interval-ms=100
+                filter kind="rate-limit" key-from="source-ip" max-tokens=100 refill-qty=10 refill-interval-ms=100 max-buckets=50000 threads=8
             }
         }
 
@@ -132,10 +132,10 @@ A request to `/api` is checked in exactly this order:
 
 1. Routed to this `route` (path-prefix `/api` matches) and its protocol checked.
 2. **`block-cidr-range`** (service level, written first) — a client IP in `203.0.113.0/24` is
-   rejected here. `rate-limit-multi-source-ip` and `token-auth` never run for that request —
+   rejected here. The `rate-limit` and `token-auth` filters never run for that request —
    an attacker in the blocked range never even gets to try presenting a token.
-3. **`rate-limit-multi-source-ip`** (service level, written second) — only reached if the IP
-   wasn't blocked. A client over its quota is rejected here; `token-auth` still never runs —
+3. **`rate-limit`** (service level, written second) — only reached if the IP wasn't blocked.
+   A client over its quota is rejected here; `token-auth` still never runs —
    Flow never bothers verifying a token for a request it's about to rate-limit anyway.
 4. **`token-auth`** (route level) — only reached once both service-level filters passed.
    Missing/invalid token → `401`/`503` here, and the request never reaches your backend.
@@ -149,3 +149,66 @@ RSA/ECDSA) never run for traffic that was going to be rejected anyway. Putting `
 first instead would mean verifying a signature for every request, even ones from an IP you were
 always going to block — usually wasted work. There's no automatic reordering by cost; this is a
 config choice you make by write order.
+
+## Stacking the same policy multiple times
+
+Each filter declaration is an independent instance. You can list the same `kind` more than once
+— at the same scope, across scopes, or both — and each instance runs as a separate check with
+its own state. There is no cross-instance aggregation.
+
+**Multiple instances at the same scope** are all evaluated in order. A request must pass every
+one of them. This is the correct way to enforce several independent dimensions simultaneously:
+
+```kdl
+request-filters {
+    // Per-IP guard — one noisy address cannot starve others
+    filter kind="rate-limit" key-from="source-ip" \
+        max-tokens=100 refill-qty=10 refill-interval-ms=100 \
+        max-buckets=50000 threads=8
+    // Per-client quota — each authenticated tenant gets its own budget
+    filter kind="rate-limit" key-from="client-id" \
+        max-tokens=500 refill-qty=50 refill-interval-ms=1000 \
+        max-buckets=100000 threads=8
+}
+```
+
+Both limits apply independently. A client that exceeds its per-IP allowance is rejected by the
+first filter and the second never runs. A client within its IP allowance but over its client
+quota is passed by the first and rejected by the second.
+
+**Instances at different scopes** (service + route) also both apply, subject to the
+first-reject-wins rule. The service-level instance runs first and acts as an outer cap; the
+route-level instance runs second and acts as a tighter inner cap for that route:
+
+```kdl
+service {
+    // Outer cap — all routes, all clients
+    path-control {
+        request-filters {
+            filter kind="rate-limit" key-from="source-ip" \
+                max-tokens=200 refill-qty=20 refill-interval-ms=1000 \
+                max-buckets=50000 threads=8
+        }
+    }
+    routes {
+        route {
+            match { path-prefix "/api/export" }
+            // Inner cap — tighter limit on this expensive route only
+            path-control {
+                request-filters {
+                    filter kind="rate-limit" key-from="client-id" \
+                        max-tokens=5 refill-qty=1 refill-interval-ms=60000 \
+                        max-buckets=10000 threads=8
+                }
+            }
+            // ...
+        }
+    }
+}
+```
+
+A request to `/api/export` must clear both: the service-level IP cap, then the route-level
+client cap. A request to any other route only sees the service-level cap.
+
+**Buckets are never shared.** Two `rate-limit` declarations with the same `key-from` maintain
+completely separate bucket stores — traffic consumed against one has no effect on the other.

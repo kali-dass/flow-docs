@@ -112,8 +112,8 @@ Prevent traffic spikes and enforce fair use.
 3. **Per-URI-path rate limit** — separate bucket per request path
 
 **Example scenario**:
-- `rate-limit-single-uri-group 100/sec` → max 100 req/sec to this route (shared bucket)
-- `rate-limit-multi-source-ip 50/sec` → max 50 req/sec per unique client IP
+- `rate-limit key-from="uri-group" max-tokens=100` → max 100 req/sec to this route (shared bucket)
+- `rate-limit key-from="source-ip" max-tokens=50` → max 50 req/sec per unique client IP
 
 See [Rate Limiting Policy](policies/rate-limiting.md) for detailed configuration.
 
