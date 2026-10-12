@@ -126,7 +126,7 @@ load-balance { selection "RoundRobin" }
 
 ```kdl
 path-control {
-  block-cidr-range { ranges "192.168.0.0/16" }
+  ip-restriction { ranges "192.168.0.0/16" }
 }
 
 upstream-request {

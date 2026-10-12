@@ -1,4 +1,4 @@
-# Block CIDR range
+# IP restriction
 
 Rejects requests whose source IP falls inside any of the listed CIDR ranges.
 
@@ -7,7 +7,7 @@ Rejects requests whose source IP falls inside any of the listed CIDR ranges.
 ```kdl
 path-control {
     request-filters {
-        filter kind="block-cidr-range" addrs="127.0.0.0/16, 10.0.0.0/8"
+        filter kind="ip-restriction" addrs="127.0.0.0/16, 10.0.0.0/8"
     }
 }
 ```
@@ -29,7 +29,7 @@ services {
     MyGateway {
         path-control {
             request-filters {
-                filter kind="block-cidr-range" addrs="192.168.0.0/16, 10.0.0.0/8"
+                filter kind="ip-restriction" addrs="192.168.0.0/16, 10.0.0.0/8"
             }
         }
         routes { ... }
@@ -45,7 +45,7 @@ route {
     ...
     path-control {
         request-filters {
-            filter kind="block-cidr-range" addrs="0.0.0.0/0"
+            filter kind="ip-restriction" addrs="0.0.0.0/0"
         }
     }
 }
@@ -63,12 +63,26 @@ curl -v http://localhost:8080/api
 
 ## A caution about source IPs
 
-This policy matches on the **source IP of the TCP connection**. If Flow sits behind another
-proxy, a CDN, or a cloud load balancer, that source IP is the **upstream proxy's** address —
+This policy matches on the **source IP of the TCP connection** by default. If Flow sits behind
+a proxy, CDN, or cloud load balancer, that source IP is the **upstream proxy's** address —
 not the real client's. Blocking on it will not do what you expect.
 
-Flow does not currently derive the client IP from `X-Forwarded-For`. If something else
-terminates connections in front of Flow, apply IP blocking there instead.
+To block on the real client IP in a proxied deployment, configure `trusted-proxies` and
+`real-ip-source` at the system level:
+
+```kdl
+system {
+    trusted-proxies {
+        cidr "10.0.0.0/8"              // your LB / proxy CIDR range
+    }
+    real-ip-source "xff"               // or "header:CF-Connecting-IP" for Cloudflare
+}
+```
+
+Flow then resolves the real client IP from the forwarded header before evaluating the block
+list. `real-ip-source` requires `trusted-proxies` — Flow refuses to start without it. See
+[Rate limiting — proxy deployments](rate-limiting.md#proxy-deployments-and-source-ip) for the
+full CDN header reference table and security notes.
 
 ## Related
 

@@ -13,7 +13,7 @@ Flow. They are declared in a `path-control` block.
 | Category | Policy | What it does |
 |---|---|---|
 | Authentication | [Token authentication](policies/token-auth.md) | Verify a bearer/cookie/query token — JWT (JWKS or static key) or opaque token via RFC 7662 introspection |
-| Security | [Block CIDR range](policies/block-cidr-range.md) | Reject requests from given IP ranges |
+| Security | [IP restriction](policies/ip-restriction.md) | Reject requests from given IP ranges |
 | Traffic Control | [Rate limiting](policies/rate-limiting.md) | Cap request rates — per IP, per client, per URI, or per custom dimension |
 | Transformation | [Upsert header](policies/upsert-header.md) | Set a header on the request or the response |
 | Transformation | [Remove header](policies/remove-header-key-regex.md) | Strip headers whose name matches a pattern |
@@ -30,7 +30,7 @@ services {
         // Applies to every route in this service
         path-control {
             request-filters {
-                filter kind="block-cidr-range" addrs="192.168.0.0/16"
+                filter kind="ip-restriction" addrs="192.168.0.0/16"
             }
         }
 
@@ -102,7 +102,7 @@ services {
     MyGateway {
         path-control {
             request-filters {
-                filter kind="block-cidr-range" addrs="203.0.113.0/24"
+                filter kind="ip-restriction" addrs="203.0.113.0/24"
                 filter kind="rate-limit" key-from="source-ip" max-tokens=100 refill-qty=10 refill-interval-ms=100 max-buckets=50000 threads=8
             }
         }
@@ -131,7 +131,7 @@ services {
 A request to `/api` is checked in exactly this order:
 
 1. Routed to this `route` (path-prefix `/api` matches) and its protocol checked.
-2. **`block-cidr-range`** (service level, written first) — a client IP in `203.0.113.0/24` is
+2. **`ip-restriction`** (service level, written first) — a client IP in `203.0.113.0/24` is
    rejected here. The `rate-limit` and `token-auth` filters never run for that request —
    an attacker in the blocked range never even gets to try presenting a token.
 3. **`rate-limit`** (service level, written second) — only reached if the IP wasn't blocked.

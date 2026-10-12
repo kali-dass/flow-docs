@@ -125,13 +125,13 @@ Block traffic from specific IP ranges.
 
 ```kdl
 path-control {
-  block-cidr-range {
+  ip-restriction {
     ranges "192.168.1.0/24" "10.0.0.0/8"
   }
 }
 ```
 
-See [Block CIDR Range Policy](policies/block-cidr-range.md).
+See [IP restriction Policy](policies/ip-restriction.md).
 
 ### Header Rewriting
 

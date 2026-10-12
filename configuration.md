@@ -526,7 +526,7 @@ Filters that inspect or rewrite requests and responses. They can be attached at 
 ```kdl
 path-control {
     request-filters {
-        filter kind="block-cidr-range" addrs="10.0.0.0/8"
+        filter kind="ip-restriction" addrs="10.0.0.0/8"
     }
     upstream-request {
         filter kind="upsert-header" key="x-api-key" value="secret"

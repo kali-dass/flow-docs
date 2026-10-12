@@ -105,10 +105,57 @@ request-filters {
 
 Each IP gets a burst of 100 and **100 requests/second** sustained.
 
-> **Check what "source IP" means in your deployment.** This is the source IP of the TCP
-> connection. If Flow sits behind another proxy, a CDN, or a cloud load balancer, that will be
-> the *proxy's* IP — so every client shares one bucket and the policy does the opposite of what
-> you intended. Flow does not currently read `X-Forwarded-For`.
+> **Check what "source IP" means in your deployment.**
+>
+> By default Flow uses the source IP of the TCP connection. If Flow sits behind a proxy, CDN,
+> or cloud load balancer, that is the *proxy's* IP — every client shares one bucket and the
+> policy does the opposite of what you intended.
+>
+> To use the real client IP, configure `trusted-proxies` and `real-ip-source` at the system
+> level. Flow then reads the IP from `X-Forwarded-For` (or a CDN header like
+> `CF-Connecting-IP`) and each real client gets its own bucket:
+>
+> ```kdl
+> system {
+>     trusted-proxies {
+>         cidr "10.0.0.0/8"              // your LB / proxy CIDR range
+>     }
+>     real-ip-source "xff"               // or "header:CF-Connecting-IP" for Cloudflare
+> }
+> ```
+>
+> `real-ip-source` requires `trusted-proxies` — Flow refuses to start without it. See
+> [Proxy deployments and source IP](#proxy-deployments-and-source-ip) below.
+
+### Proxy deployments and source IP
+
+When Flow sits behind a proxy, CDN, or cloud load balancer, configure `trusted-proxies` and
+`real-ip-source` so Flow resolves the real client IP from the forwarded headers:
+
+```kdl
+system {
+    trusted-proxies {
+        cidr "10.0.0.0/8"                  // your LB / proxy CIDR range
+    }
+    real-ip-source "xff"                   // read X-Forwarded-For
+}
+```
+
+For CDN deployments, use the CDN's proprietary header instead of `xff`:
+
+| CDN | `real-ip-source` value |
+|---|---|
+| Cloudflare | `"header:CF-Connecting-IP"` |
+| AWS CloudFront | `"header:CloudFront-Viewer-Address"` |
+| Fastly | `"header:Fastly-Client-IP"` |
+| Akamai | `"header:True-Client-IP"` |
+| Generic Nginx proxy | `"header:X-Real-IP"` |
+
+**Security**: `real-ip-source` is a security-sensitive setting. Flow requires `trusted-proxies`
+to be configured when `real-ip-source` is set to anything other than `"peer"` — it will refuse
+to start without it. Only connections arriving from a declared trusted CIDR will have their
+forwarded header trusted; direct connections always use the raw TCP peer, preventing header
+injection.
 
 ---
 
@@ -348,6 +395,6 @@ Once the bucket empties, the `200`s turn into `429`s.
 
 ## Related
 
-- [Block CIDR range](block-cidr-range.md) — to block outright rather than throttle
+- [IP restriction](ip-restriction.md) — to block outright rather than throttle
 - [Token auth](token-auth.md) — required upstream of `key-from="client-id"`
 - [Policies index](../policies.md)
