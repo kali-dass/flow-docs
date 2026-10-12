@@ -186,6 +186,21 @@ all other connections use the raw TCP peer regardless.
 `trusted-proxies` without `real-ip-source` is accepted (the CIDRs are stored but have no effect
 until `real-ip-source` is set).
 
+### Forwarded headers written to upstream
+
+Flow automatically writes `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` to
+every upstream request. This is always-on and requires no configuration.
+
+| Header | Value |
+|---|---|
+| `X-Forwarded-For` | Resolved client IP, appended to any existing trusted chain |
+| `X-Forwarded-Proto` | `https` or `http` — the protocol of the downstream connection |
+| `X-Forwarded-Host` | The original `Host` header from the client request |
+
+**Strip-before-append**: if the TCP peer is not in `trusted-proxies`, any incoming
+`X-Forwarded-*` headers are stripped before Flow appends its own values. This prevents a
+client from pre-populating the chain to spoof its source IP.
+
 ---
 
 ## `services` block

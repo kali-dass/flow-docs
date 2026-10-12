@@ -137,14 +137,13 @@ See [IP restriction Policy](policies/ip-restriction.md).
 
 Add, remove, or modify headers in requests or responses.
 
-**Example**: Add `X-Forwarded-By: Flow` to upstream requests
+**Example**: Add `X-Api-Gateway: Flow` to upstream requests
 
 ```kdl
-upstream-request {
-  upsert-header {
-    key "X-Forwarded-By"
-    value "Flow"
-  }
+path-control {
+    upstream-request {
+        filter kind="upsert-header" key="X-Api-Gateway" value="Flow"
+    }
 }
 ```
 
