@@ -86,7 +86,7 @@ Choose based on your backend topology and traffic pattern.
 - **Which hash function**: 
   - **FVN** (FowlerNollVo): General purpose, faster
   - **Ketama**: Used by memcached, if you're already using Ketama elsewhere
-- **What gets hashed**: Configurable via `RequestSelector` (source IP + path, path only, etc.)
+- **What gets hashed**: Configurable via `RequestSelector` (source IP + path, path only, etc.). The "source IP" is the resolved client IP — configure `real-ip-source` in `system` for correct hashing behind a proxy or CDN. See [Configuration](configuration.md#real-client-ip).
 - **Configuration**: `selection "FVNHash"` or `selection "KetamaHashing"`, choose selector
 
 ### Considerations

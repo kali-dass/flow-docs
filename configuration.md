@@ -44,7 +44,8 @@ the second occurrence.
 | Scope | Appears **once** | Can **repeat** |
 |---|---|---|
 | Top level | `system`, `services` | — |
-| `system` | `threads-per-service`, `daemonize`, `pid-file`, `upgrade-socket`, `ca-file` | — |
+| `system` | `threads-per-service`, `daemonize`, `pid-file`, `upgrade-socket`, `ca-file`, `real-ip-source` | — |
+| `system.trusted-proxies` | — | `cidr` |
 | `system.logging` | `app-log` | — |
 | `system.logging.app-log` | `level`, `output`, `log-dir` | — |
 | `system.logging.access-log` | *(reserved — content ignored)* | — |
@@ -92,6 +93,12 @@ system {
         }
     }
 
+    // Real client IP — required when Flow sits behind a proxy or CDN.
+    // trusted-proxies {
+    //     cidr "10.0.0.0/8"
+    // }
+    // real-ip-source "xff"   // or "header:CF-Connecting-IP" etc.
+
     // dns-resolver { ... }   // see DNS discovery below
 }
 ```
@@ -103,6 +110,7 @@ system {
 | `pid-file` | Absolute path to the PID file used when daemonizing. |
 | `upgrade-socket` | Absolute path to the Unix socket used for zero-downtime upgrades. See [Operations](operations.md). |
 | `ca-file` | A CA bundle trusted for **all** outgoing upstream TLS connections. Use when every upstream shares one private CA. For per-upstream CAs, use `ca-cert-path` on the connector instead. |
+| `real-ip-source` | How to resolve the effective client IP. `"peer"` (default), `"xff"` (X-Forwarded-For), or `"header:<name>"` (single named header). Requires `trusted-proxies` when not `"peer"`. See [Real client IP](#real-client-ip) below. |
 
 ### `logging.app-log`
 
@@ -130,6 +138,53 @@ An `access-log` block may appear inside `logging` — Flow accepts it without er
 not yet read or act on anything inside it. Per-request access logging is not implemented.
 The name is reserved so configs that include it now will not need to be changed when the
 feature ships.
+
+### Real client IP
+
+By default Flow uses the raw TCP peer address as the client IP for all IP-based policies
+([ip-restriction](policies/ip-restriction.md), [rate limiting](policies/rate-limiting.md)
+`key-from="source-ip"`, and load-balancing hashing). When Flow sits behind a proxy, CDN, or
+cloud load balancer, that peer address is the proxy's address — not the real client's.
+
+Configure `trusted-proxies` and `real-ip-source` to tell Flow where to find the real IP:
+
+```kdl
+system {
+    trusted-proxies {
+        cidr "10.0.0.0/8"              // your LB / proxy CIDR range
+    }
+    real-ip-source "xff"               // read X-Forwarded-For
+}
+```
+
+For CDN deployments, use the CDN's proprietary header:
+
+```kdl
+system {
+    trusted-proxies {
+        cidr "103.21.244.0/22"         // Cloudflare IP range (example)
+    }
+    real-ip-source "header:CF-Connecting-IP"
+}
+```
+
+| CDN / proxy | `real-ip-source` value |
+|---|---|
+| Generic (X-Forwarded-For) | `"xff"` |
+| Cloudflare | `"header:CF-Connecting-IP"` |
+| AWS CloudFront | `"header:CloudFront-Viewer-Address"` |
+| Fastly | `"header:Fastly-Client-IP"` |
+| Akamai | `"header:True-Client-IP"` |
+| Generic Nginx proxy | `"header:X-Real-IP"` |
+
+**`real-ip-source` requires `trusted-proxies`** — Flow refuses to start without it when source
+is anything other than `"peer"`. This is a security requirement: a header-based source without
+a trusted-proxy list lets any client inject an arbitrary IP and bypass IP-based policies. Only
+connections arriving from a declared trusted CIDR will have their forwarded header trusted;
+all other connections use the raw TCP peer regardless.
+
+`trusted-proxies` without `real-ip-source` is accepted (the CIDRs are stored but have no effect
+until `real-ip-source` is set).
 
 ---
 
@@ -364,7 +419,7 @@ selection "Ketama" key="UriPath"
 | `key` | Hashed on |
 |---|---|
 | `UriPath` | Request URI path |
-| `SourceAddrAndUriPath` | Client IP + URI path |
+| `SourceAddrAndUriPath` | Client IP + URI path. Uses the resolved client IP — set `real-ip-source` for consistent hashing behind a proxy. |
 
 ### Discovery
 
