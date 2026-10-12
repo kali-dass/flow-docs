@@ -15,7 +15,6 @@ Flow has different types of limitations. Choose what's relevant to your use case
 For "Why can't I do X?" — features on the roadmap but not yet implemented:
 - WebSocket proxying
 - gRPC (implemented, not validated)
-- Upstream health checking
 
 ### [**Architectural Constraints**](architecture-constraints.md)
 
@@ -39,7 +38,7 @@ For "Why is it doing that?" — behaviors that aren't bugs but important to unde
 
 For "Is Flow right for us?" — clarification on scope for evaluating whether Flow fits your architecture today:
 - Not a service mesh
-- Not a load balancer (no health checking; **planned for future**)
+- Not a full load balancer (active health checking is supported; geographic routing and cross-region failover are not)
 - Not a WAF
 - Not a cache
 - Not a full API Gateway today (per-user rate limiting, transformation, caching, CORS, circuit breaking, and more are **planned for API Gateway Phase 1**)
@@ -52,7 +51,7 @@ For "Is Flow right for us?" — clarification on scope for evaluating whether Fl
 
 **Can Flow do gRPC?** It can proxy gRPC traffic (gRPC uses HTTP/2), but we haven't validated it against real gRPC traffic yet. See [gRPC](not-yet-supported.md#grpc).
 
-**Can Flow check if a backend is healthy?** Not yet. All backends must be healthy. See [Upstream Health Checking](not-yet-supported.md#upstream-health-checking).
+**Can Flow check if a backend is healthy?** Yes — use `health-check "Active"` in the `load-balance` block. Flow will periodically probe each backend and remove unhealthy ones from the pool. See [Health checking](configuration.md#health-checking) for the full configuration syntax.
 
 **Can I rate-limit across multiple Flow instances?** No. Rate limiting is per-instance, in-memory. You need to run a single Flow instance or use external rate limiting. See [Known Behaviors](known-behaviors.md).
 

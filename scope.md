@@ -45,7 +45,7 @@ header transformation — all from a single configuration file.
 | Per-user/per-tenant rate limiting | Planned — API Gateway Phase 1 |
 | Circuit breaking on upstream errors | Planned — API Gateway Phase 1 |
 | Weighted / canary traffic splitting | Planned — API Gateway Phase 1 |
-| Active upstream health checking | Planned — API Gateway Phase 1 |
+| Active upstream health checking | Shipped |
 | Prometheus metrics endpoint | Planned — infra |
 | Distributed tracing (OpenTelemetry) | Planned — infra |
 | Per-request access logging with external sinks | Planned — infra |
@@ -98,7 +98,7 @@ with active health checking, geographic routing, and cross-region failover.
 **What Flow does and doesn't do**:
 - ✅ HTTP/2-aware load balancing (round-robin, random, consistent hashing) across configured backends
 - ✅ DNS name resolution for upstream hostnames with background refresh
-- ⏳ Active health checking — **planned in Phase 1**
+- ✅ Active health checking — `health-check "Active"` in the `load-balance` block
 - ⏳ Circuit breaking on upstream errors — **planned in Phase 1**
 - ❌ Geographic routing — not planned
 - ❌ Cross-region failover — not planned

@@ -58,7 +58,7 @@ the second occurrence.
 | `match` | the matcher | sub-matchers inside `all` / `any` |
 | `connectors` | `load-balance` | backend address lines |
 | A connector | each attribute (`proto`, `tls-sni`, `max-h2-streams`, timeouts…) — each once | — |
-| `load-balance` | `selection`, `discovery`, `health-check` | — |
+| `load-balance` | `selection`, `discovery`, `health-check`, `health-check-path`, `health-check-interval-secs`, `health-check-timeout-secs`, `unhealthy-threshold`, `healthy-threshold` | — |
 | `path-control` | `request-filters`, `upstream-request`, `upstream-response` | — |
 | A filter phase | — | `filter` nodes |
 
@@ -408,7 +408,6 @@ connectors {
     load-balance {
         selection "RoundRobin"
         discovery "Static"
-        health-check "None"
     }
 
     "10.0.0.1:3000" tls-sni="backend.internal" proto="h2-or-h1"
@@ -458,7 +457,6 @@ connectors {
     load-balance {
         selection "RoundRobin"
         discovery "Static"      // force static even though the address is a hostname
-        health-check "None"
     }
     "httpbin.org:443" tls-sni="httpbin.org" proto="h2-or-h1"
 }
@@ -469,7 +467,7 @@ For DNS discovery, use a hostname connector. `discovery "Dns"` is auto-detected 
 ```kdl
 // Plaintext HTTP — common for internal Kubernetes services
 connectors {
-    load-balance { selection "RoundRobin" health-check "None" }
+    load-balance { selection "RoundRobin" }
     "orders-svc.default.svc.cluster.local:8080"
 }
 
@@ -478,7 +476,6 @@ connectors {
     load-balance {
         selection "RoundRobin"
         discovery "Dns"         // explicit because we're setting dns-interval-secs
-        health-check "None"
     }
     "catalog.internal:443" proto="h2-or-h1" dns-interval-secs=30
     // tls-sni defaults to the hostname ("catalog.internal") — only set it
@@ -510,7 +507,34 @@ system {
 | `timeout-secs` | no | 5 | Per-query timeout in seconds before the resolver retries or fails. |
 | `attempts` | no | 2 | Number of retry attempts per DNS query before returning a failure. |
 
-Health checking is **not yet implemented** (`health-check "None"`).
+### Health checking
+
+Flow can periodically probe each backend and remove unhealthy ones from the pool.
+
+| `health-check` | Behavior |
+|---|---|
+| `"None"` | No probing. All backends receive traffic regardless of state. This is the default. |
+| `"Active"` | Periodic HTTP GET probe. Backends are removed after `unhealthy-threshold` consecutive failures and restored after `healthy-threshold` consecutive successes. |
+
+```kdl
+connectors {
+    load-balance {
+        selection "RoundRobin"
+        health-check "Active"
+        health-check-path "/healthz"       // path to probe — default /healthz
+        health-check-interval-secs 10      // seconds between probes — default 10
+        health-check-timeout-secs 2        // probe timeout — default 2
+        unhealthy-threshold 3              // consecutive failures to mark down — default 3
+        healthy-threshold 2                // consecutive successes to restore — default 2
+    }
+    "10.0.0.1:3000"
+    "10.0.0.2:3000"
+}
+```
+
+All fields except `health-check "Active"` are optional; the defaults shown apply. Health checking works with both static IP and DNS-discovered connectors.
+
+**Fail-open**: when all backends are marked unhealthy, Flow routes requests anyway rather than returning errors immediately. This prevents a misconfigured probe from taking a service offline.
 
 ### Protocol and TLS
 

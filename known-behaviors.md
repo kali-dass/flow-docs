@@ -8,20 +8,24 @@ These behaviors are not bugs—they're how Flow is designed to work. Knowing the
 
 **Behavior**: If all backends in a route become unreachable or close connections, Flow returns HTTP 502 Bad Gateway to the client.
 
-**Why this happens**: Flow has no health checking. When a request arrives:
+**Why this happens**: When a request arrives:
 1. Flow picks a backend (round-robin, random, or hashing)
 2. Flow attempts to connect and proxy the request
 3. If the connection fails (refused, timeout, closed), Flow returns 502
 
-**No graceful degradation**: There's no "if a few backends fail, route to the healthy ones" logic. All backends must be healthy.
+**With active health checking** (`health-check "Active"`): Flow removes backends that fail probes before requests reach them. A backend is only removed after `unhealthy-threshold` consecutive probe failures, so transient blips don't pull backends out of rotation. See [Configuration](configuration.md) for the full syntax.
+
+**Without health checking** (`health-check "None"`, the default): Flow has no awareness of backend health — failures are only discovered when a request fails.
+
+**All-backends-unhealthy**: If every backend in a pool is marked unhealthy by the health checker, Flow falls back to routing requests anyway (fail-open). This prevents a misconfigured health probe from taking a service offline entirely.
 
 **When you'll see this**:
 - All backends are down (maintenance, crash, deployment issue)
 - Network partition isolates Flow from backends
-- Load balancer upstream of Flow doesn't remove failed backends
+- Health checking is not enabled and a backend goes down silently
 
 **How to handle**:
-- **Upstream orchestration**: Use Kubernetes, Consul, or DNS to ensure Flow only sees healthy backends
+- **Enable health checking**: Use `health-check "Active"` in the `load-balance` block — Flow will stop sending requests to failed backends and restore them automatically when they recover
 - **Client retry logic**: Clients should retry on 502 with exponential backoff
 - **Monitoring**: Alert when Flow starts returning 502s (indicates backend failure)
 - **Graceful shutdown**: During backend maintenance, remove it from DNS (for DNS-discovered connectors) or from Flow's configuration (for static IP connectors) before shutting it down

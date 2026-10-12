@@ -92,7 +92,7 @@ Choose based on your backend topology and traffic pattern.
 ### Considerations
 
 - **Uneven backend capacity**: No built-in weighting. If backends have different capacity, use round-robin or configure load-test to verify distribution.
-- **Resilience**: If a backend fails, consistent hashing still routes to it (requires health checking, not yet in Flow). For now, all backends must be healthy.
+- **Resilience**: If a backend fails, consistent hashing still routes to it unless health checking is enabled. Enable `health-check "Active"` in the `load-balance` block to automatically remove failed backends and restore them when they recover.
 
 See [Configuration Reference](configuration.md) for syntax.
 
@@ -338,7 +338,6 @@ See [Known Behaviors](known-behaviors.md) for more.
 Some features are not yet supported:
 - WebSocket proxying
 - gRPC (implemented but not validated)
-- Upstream health checking
 
 See [Not Yet Supported](not-yet-supported.md).
 

@@ -36,24 +36,12 @@ Flow can proxy gRPC traffic because gRPC runs on HTTP/2 (or HTTP/1.1 with custom
 
 ## Upstream Health Checking
 
-**Status**: Not supported
+**Status**: Shipped — see [Configuration → Health checking](configuration.md#health-checking) for the full syntax and options.
 
-Flow has no built-in health checking. If a backend becomes unhealthy or goes down, Flow continues sending it requests until it times out or closes the connection. Requests to unhealthy backends fail (502 Bad Gateway).
+Flow supports active HTTP health checking via `health-check "Active"` in the `load-balance` block. Backends are removed from the pool after configurable failure thresholds and restored automatically after recovery.
 
-**Workaround**:
-- **Use external health checking**: Keep only healthy backends in your service discovery system or DNS. DNS-discovered connectors update automatically when records change — unhealthy backends must be removed from DNS.
-- **Rely on client retries**: Clients should retry on 502/503 responses.
-- **Layer health checking outside Flow**: Use Kubernetes liveness probes, consul, or another service mesh to manage backend health. Update Flow's connector list dynamically.
-- **Accept the tradeoff**: If your backends are stable and failures are rare, the impact may be tolerable.
-
-**Why not supported**:
-- Health checking requires persistent state and periodic checks (adds complexity and CPU overhead)
-- In containerized environments, orchestrators (Kubernetes) already handle health and scheduling
-- For traditional deployments, external load balancers or DNS often provide health checking
-
-**Future roadmap**:
-- Active health checking is planned for API Gateway Phase 1
-- Circuit breaking (trip a failing upstream out of rotation automatically) is also planned for Phase 1 and provides passive failure-based exclusion without periodic probes
+**Planned**:
+- Circuit breaking (passive failure-based exclusion without periodic probes) is planned for a future release.
 
 ---
 

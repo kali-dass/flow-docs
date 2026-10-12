@@ -214,9 +214,25 @@ and running multiple instances behind a load balancer — is there too.
 
 ## Health checking
 
-Upstream health checking is **not yet implemented** (`health-check "None"`). Flow will
-continue to send traffic to a failed backend. Until this lands, put a health-checking layer
-in front of, or behind, Flow if you need automatic backend failover.
+Flow supports active HTTP health checking. Configure it in the `load-balance` block of any connector:
+
+```kdl
+load-balance {
+    selection "RoundRobin"
+    health-check "Active"
+    health-check-path "/healthz"       // default
+    health-check-interval-secs 10      // default: probe every 10s
+    health-check-timeout-secs 2        // default: 2s per probe
+    unhealthy-threshold 3              // default: 3 failures → removed from pool
+    healthy-threshold 2                // default: 2 successes → restored
+}
+```
+
+Flow probes each backend independently on the configured interval. A backend is removed from the pool after `unhealthy-threshold` consecutive failures and restored after `healthy-threshold` consecutive successes. All fields except `health-check "Active"` are optional.
+
+**Fail-open**: if all backends in a pool are marked unhealthy, Flow continues routing requests rather than failing immediately. This avoids a misconfigured probe taking a service offline.
+
+Without health checking (`health-check "None"`, the default), failures are only discovered when a request fails — put a health-checking layer upstream of Flow, or use DNS-based backend removal, if you need automatic failover without probing.
 
 ## Troubleshooting
 
