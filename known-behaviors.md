@@ -24,7 +24,7 @@ These behaviors are not bugs—they're how Flow is designed to work. Knowing the
 - **Upstream orchestration**: Use Kubernetes, Consul, or DNS to ensure Flow only sees healthy backends
 - **Client retry logic**: Clients should retry on 502 with exponential backoff
 - **Monitoring**: Alert when Flow starts returning 502s (indicates backend failure)
-- **Graceful shutdown**: During backend maintenance, remove it from Flow's configuration before shutting it down
+- **Graceful shutdown**: During backend maintenance, remove it from DNS (for DNS-discovered connectors) or from Flow's configuration (for static IP connectors) before shutting it down
 
 **Example error**:
 ```

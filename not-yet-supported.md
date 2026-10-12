@@ -41,7 +41,7 @@ Flow can proxy gRPC traffic because gRPC runs on HTTP/2 (or HTTP/1.1 with custom
 Flow has no built-in health checking. If a backend becomes unhealthy or goes down, Flow continues sending it requests until it times out or closes the connection. Requests to unhealthy backends fail (502 Bad Gateway).
 
 **Workaround**:
-- **Use external health checking**: Keep only healthy backends in your service discovery system or DNS. Update Flow's configuration when backends change.
+- **Use external health checking**: Keep only healthy backends in your service discovery system or DNS. DNS-discovered connectors update automatically when records change — unhealthy backends must be removed from DNS.
 - **Rely on client retries**: Clients should retry on 502/503 responses.
 - **Layer health checking outside Flow**: Use Kubernetes liveness probes, consul, or another service mesh to manage backend health. Update Flow's connector list dynamically.
 - **Accept the tradeoff**: If your backends are stable and failures are rare, the impact may be tolerable.

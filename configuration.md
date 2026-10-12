@@ -464,13 +464,20 @@ connectors {
 }
 ```
 
-For DNS discovery, use a hostname connector with an optional `dns-interval-secs` attribute:
+For DNS discovery, use a hostname connector. `discovery "Dns"` is auto-detected from the hostname — only set it explicitly when you also want to tune `dns-interval-secs`:
 
 ```kdl
+// Plaintext HTTP — common for internal Kubernetes services
+connectors {
+    load-balance { selection "RoundRobin" health-check "None" }
+    "orders-svc.default.svc.cluster.local:8080"
+}
+
+// TLS — external service or when the backend requires TLS
 connectors {
     load-balance {
         selection "RoundRobin"
-        discovery "Dns"         // explicit, or omit to auto-detect from the hostname
+        discovery "Dns"         // explicit because we're setting dns-interval-secs
         health-check "None"
     }
     "catalog.internal:443" proto="h2-or-h1" dns-interval-secs=30

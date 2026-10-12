@@ -60,7 +60,7 @@ For "Is Flow right for us?" — clarification on scope for evaluating whether Fl
 
 **Can Flow do virtual hosting?** Yes, via SNI matching or header matching. See [Design Decisions](design-decisions.md).
 
-**Can Flow run in Kubernetes?** Yes. Deploy as a DaemonSet or Deployment, expose via a Kubernetes Service. No special integration yet (no automatic service discovery).
+**Can Flow run in Kubernetes?** Yes. Deploy as a DaemonSet or Deployment, expose via a Kubernetes Service. Upstream connectors accept Kubernetes DNS names (e.g. `orders-svc.default.svc.cluster.local:8080`) and refresh the backend pool automatically when the address changes. No Kubernetes API integration — discovery is DNS-based, not watch-based.
 
 **Does Flow need a license to run?** Yes — every instance requires a valid license file, checked at startup before Flow opens any listener. See [Licensing](license.md).
 
