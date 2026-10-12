@@ -58,7 +58,7 @@ the second occurrence.
 | `match` | the matcher | sub-matchers inside `all` / `any` |
 | `connectors` | `load-balance` | backend address lines |
 | A connector | each attribute (`proto`, `tls-sni`, `max-h2-streams`, timeouts…) — each once | — |
-| `load-balance` | `selection`, `discovery`, `health-check`, `health-check-path`, `health-check-interval-secs`, `health-check-timeout-secs`, `unhealthy-threshold`, `healthy-threshold` | — |
+| `load-balance` | `selection` (with required `key` attribute for `"FNV"`/`"Ketama"`), `discovery`, `health-check`, `health-check-path`, `health-check-interval-secs`, `health-check-timeout-secs`, `unhealthy-threshold`, `healthy-threshold` | — |
 | `path-control` | `request-filters`, `upstream-request`, `upstream-response` | — |
 | A filter phase | — | `filter` nodes |
 
@@ -415,16 +415,51 @@ connectors {
 }
 ```
 
+### Multiple backends
+
+List as many backend addresses as needed — Flow distributes traffic across all of them according to the `selection` strategy:
+
+```kdl
+connectors {
+    load-balance {
+        selection "RoundRobin"
+        health-check "Active"
+    }
+    "10.0.0.1:3000"
+    "10.0.0.2:3000"
+    "10.0.0.3:3000"
+}
+```
+
+With DNS discovery, a single hostname that resolves to multiple IPs works the same way — Flow maintains the pool automatically as the address changes:
+
+```kdl
+connectors {
+    load-balance {
+        selection "RoundRobin"
+        discovery "Dns"
+        health-check "Active"
+    }
+    "orders-svc.default.svc.cluster.local:8080"
+}
+```
+
 ### Load balancing
 
-| `selection` | Behavior |
+| `selection` | Order / behavior |
 |---|---|
-| `"RoundRobin"` | Even rotation across upstreams |
-| `"Random"` | Uniform random pick |
-| `"FNV"` | FNV hash of the selector key — sticky |
-| `"Ketama"` | Consistent hashing — sticky, stable under membership change |
+| `"RoundRobin"` | Cycles through backends in the order they are listed in the config — request 1 → first backend, request 2 → second, and so on, wrapping around. Default. |
+| `"Random"` | Picks a backend at random for each request. No guaranteed order. |
+| `"FNV"` | FNV hash of the selector key — the same key always maps to the same backend. Sticky, but remaps all keys when the pool size changes. |
+| `"Ketama"` | Consistent hash of the selector key — sticky and stable under membership change. When a backend is added or removed, only a fraction of keys remap. Preferred over `"FNV"` when backends join or leave frequently. |
 
-For `"FNV"` and `"Ketama"`, add a `key` attribute to `selection` to control what is hashed:
+**When to use which:**
+- Homogeneous backends with no session state → `RoundRobin`
+- Simple even spread without ordering guarantees → `Random`
+- Session affinity (e.g. cache locality, MCP session stickiness) → `Ketama`
+- Session affinity on a stable, rarely-changing pool → `FNV`
+
+`"FNV"` and `"Ketama"` require a `key` attribute — Flow rejects the config without one. `key` controls what is hashed:
 
 ```kdl
 selection "Ketama" key="UriPath"
