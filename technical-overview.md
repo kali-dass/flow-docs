@@ -126,15 +126,15 @@ load-balance { selection "RoundRobin" }
 
 ```kdl
 path-control {
-  ip-restriction { ranges "192.168.0.0/16" }
-}
-
-upstream-request {
-  upsert-header { key "X-Forwarded-By" value "Flow" }
-}
-
-upstream-response {
-  timing-header {}
+    request-filters {
+        filter kind="ip-restriction" deny="192.168.0.0/16"
+    }
+    upstream-request {
+        filter kind="upsert-header" key="X-Forwarded-By" value="Flow"
+    }
+    upstream-response {
+        filter kind="timing-header"
+    }
 }
 ```
 

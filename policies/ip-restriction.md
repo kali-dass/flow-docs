@@ -1,35 +1,75 @@
 # IP restriction
 
-Rejects requests whose source IP falls inside any of the listed CIDR ranges.
+Accepts or rejects requests based on the source IP address. Supports allow lists, deny lists,
+and combined allow+deny configurations. Phase: `request-filters`.
 
-**Phase:** `request-filters`
+## Deny list (block specific ranges)
+
+Reject requests from listed CIDRs; all other traffic passes.
 
 ```kdl
 path-control {
     request-filters {
-        filter kind="ip-restriction" addrs="127.0.0.0/16, 10.0.0.0/8"
+        filter kind="ip-restriction" deny="192.168.0.0/16, 10.0.0.0/8"
+    }
+}
+```
+
+## Allow list (permit only specific ranges)
+
+Only listed CIDRs pass; everything else is rejected with 403.
+
+```kdl
+path-control {
+    request-filters {
+        filter kind="ip-restriction" allow="203.0.113.0/24, 198.51.100.5/32"
+    }
+}
+```
+
+Useful for internal APIs, partner-only endpoints, and admin routes.
+
+## Combined allow + deny
+
+Allow a broad range but carve out a specific IP. Deny takes precedence when both match.
+
+```kdl
+path-control {
+    request-filters {
+        filter kind="ip-restriction" allow="10.0.0.0/8" deny="10.0.1.5/32"
     }
 }
 ```
 
 ## Options
 
-| Option | Meaning |
-|---|---|
-| `addrs` | Comma-separated list of CIDR ranges to block |
+| Option | Default | Meaning |
+|---|---|---|
+| `allow` | — | Comma-separated CIDRs to permit. All other IPs are rejected. |
+| `deny` | — | Comma-separated CIDRs to reject. |
+| `status` | `403` | HTTP status code returned on rejection (any 4xx). |
+| `message` | — | Optional plain-text body included in the rejection response. |
 
-Both IPv4 and IPv6 ranges are accepted.
+At least one of `allow` or `deny` must be present.
+
+Both IPv4 and IPv6 CIDRs are accepted in all fields.
+
+### Custom rejection
+
+```kdl
+filter kind="ip-restriction" deny="192.168.0.0/16" status=403 message="Access denied by policy"
+```
 
 ## Where to attach it
 
-Put it at the **service** level to block traffic from reaching any route:
+**Service level** — block traffic before it reaches any route:
 
 ```kdl
 services {
     MyGateway {
         path-control {
             request-filters {
-                filter kind="ip-restriction" addrs="192.168.0.0/16, 10.0.0.0/8"
+                filter kind="ip-restriction" deny="192.168.0.0/16, 10.0.0.0/8"
             }
         }
         routes { ... }
@@ -37,7 +77,7 @@ services {
 }
 ```
 
-Or on a single **route**, to protect just that path:
+**Route level** — protect a single path:
 
 ```kdl
 route {
@@ -45,30 +85,20 @@ route {
     ...
     path-control {
         request-filters {
-            filter kind="ip-restriction" addrs="0.0.0.0/0"
+            filter kind="ip-restriction" allow="10.0.0.0/8"
         }
     }
 }
 ```
 
-## Trying it out
+## Source IP in proxied deployments
 
-```bash
-# Blocked — request is rejected
-curl -v http://localhost:8080/admin
+This policy matches the **resolved client IP**. By default that is the raw TCP peer address —
+if Flow sits behind a proxy, CDN, or cloud load balancer, the peer is the proxy's address, not
+the real client's.
 
-# From an allowed range — passes through
-curl -v http://localhost:8080/api
-```
-
-## A caution about source IPs
-
-This policy matches on the **source IP of the TCP connection** by default. If Flow sits behind
-a proxy, CDN, or cloud load balancer, that source IP is the **upstream proxy's** address —
-not the real client's. Blocking on it will not do what you expect.
-
-To block on the real client IP in a proxied deployment, configure `trusted-proxies` and
-`real-ip-source` at the system level:
+To match on the real client IP, configure `trusted-proxies` and `real-ip-source` at the system
+level:
 
 ```kdl
 system {
@@ -79,10 +109,9 @@ system {
 }
 ```
 
-Flow then resolves the real client IP from the forwarded header before evaluating the block
-list. `real-ip-source` requires `trusted-proxies` — Flow refuses to start without it. See
-[Rate limiting — proxy deployments](rate-limiting.md#proxy-deployments-and-source-ip) for the
-full CDN header reference table and security notes.
+`real-ip-source` requires `trusted-proxies` — Flow refuses to start without it. See
+[Configuration](../configuration.md#real-client-ip) for the full CDN header reference and
+security notes.
 
 ## Related
 
