@@ -8,16 +8,32 @@
 Policies (called *filters* in the config) inspect or rewrite traffic as it passes through
 Flow. They are declared in a `path-control` block.
 
+> **Circuit breaking is not a policy.** It is backend-selection logic — it gates whether a specific backend can receive a request based on that backend's recent error history. Because it tracks state per backend (not per request), it lives inside `load-balance` rather than `path-control`. See [Configuration → Circuit breaking](configuration.md#circuit-breaking).
+
 ## Available policies
 
-| Category | Policy | What it does |
-|---|---|---|
-| Authentication | [Token authentication](policies/token-auth.md) | Verify a bearer/cookie/query token — JWT (JWKS or static key) or opaque token via RFC 7662 introspection |
-| Security | [IP restriction](policies/ip-restriction.md) | Allow or block requests by source IP (CIDR ranges) |
-| Traffic Control | [Rate limiting](policies/rate-limiting.md) | Cap request rates — per IP, per client, per URI, or per custom dimension |
-| Transformation | [Upsert header](policies/upsert-header.md) | Set a header on the request or the response |
-| Transformation | [Remove header](policies/remove-header-key-regex.md) | Strip headers whose name matches a pattern |
-| Observability | [Timing header](policies/timing-header.md) | Add latency timing headers to the response |
+| Category | Policy | `request-filters` | `upstream-request` | `upstream-response` | What it does |
+|---|---|:---:|:---:|:---:|---|
+| Authentication | [Token authentication](policies/token-auth.md) | ✓ | — | — | Verify a bearer/cookie/query token — JWT (JWKS or static key) or opaque token via RFC 7662 introspection |
+| Security | [IP restriction](policies/ip-restriction.md) | ✓ | — | — | Allow or block requests by source IP (CIDR ranges) |
+| Traffic Control | [Rate limiting](policies/rate-limiting.md) | ✓ | — | — | Cap request rates — per IP, per client, per URI, or per custom dimension |
+| Transformation | [Upsert header](policies/upsert-header.md) | — | ✓ | ✓ | Set a header on the upstream request or the response |
+| Transformation | [Remove header](policies/remove-header-key-regex.md) | — | ✓ | ✓ | Strip headers whose name matches a regex pattern |
+| Observability | [Timing header](policies/timing-header.md) | — | — | ✓ | Add upstream and total latency timing headers to the response |
+
+## Wrong-phase errors
+
+Placing a policy in a phase it does not support is a configuration error. Flow catches it at startup — **before serving any traffic** — and refuses to start.
+
+For example, putting `token-auth` in `upstream-response` produces an error like:
+
+```
+Unknown upstream response filter: 'token-auth'
+```
+
+The fix is always to move the filter to a block it supports. The table above shows which phases each policy accepts (✓) and which it does not (—). A policy placed in a — column will always be rejected.
+
+**This is enforced at load, not at request time.** A misconfigured policy cannot silently pass traffic through or apply to the wrong requests — the process will not start until the config is corrected.
 
 ## Where policies attach
 

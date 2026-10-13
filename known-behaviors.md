@@ -13,7 +13,7 @@ These behaviors are not bugs—they're how Flow is designed to work. Knowing the
 2. Flow attempts to connect and proxy the request
 3. If the connection fails (refused, timeout, closed), Flow returns 502
 
-**With active health checking** (`health-check "Active"`): Flow removes backends that fail probes before requests reach them. A backend is only removed after `unhealthy-threshold` consecutive probe failures, so transient blips don't pull backends out of rotation. See [Configuration](configuration.md) for the full syntax.
+**With active health checking** (`health-check "Active"`): Flow removes backends that fail probes before requests reach them. A backend is only removed after `unhealthy-threshold` consecutive probe failures, so transient blips don't pull backends out of rotation. See [Configuration](configuration.md) for the full syntax. Active health checking catches backends that are completely down — for backends that are alive but returning errors on real traffic, see circuit breaking in [Design Decisions](design-decisions.md#how-should-i-handle-backend-failures).
 
 **Without health checking** (`health-check "None"`, the default): Flow has no awareness of backend health — failures are only discovered when a request fails.
 

@@ -58,7 +58,8 @@ the second occurrence.
 | `match` | the matcher | sub-matchers inside `all` / `any` |
 | `connectors` | `load-balance` | backend address lines |
 | A connector | each attribute (`proto`, `tls-sni`, `max-h2-streams`, timeouts…) — each once | — |
-| `load-balance` | `selection` (with required `key` attribute for `"FNV"`/`"Ketama"`), `discovery`, `health-check`, `health-check-path`, `health-check-interval-secs`, `health-check-timeout-secs`, `unhealthy-threshold`, `healthy-threshold` | — |
+| `load-balance` | `selection` (with required `key` attribute for `"FNV"`/`"Ketama"`), `discovery`, `health-check`, `health-check-path`, `health-check-interval-secs`, `health-check-timeout-secs`, `unhealthy-threshold`, `healthy-threshold`, `circuit-breaker { … }` | — |
+| `circuit-breaker` | `error-threshold-pct`, `window-secs`, `min-requests`, `cooldown-secs`, `probe-requests`, `window-strategy`, `bucket-count` (only with `window-strategy "TimeBuckets"`) | — |
 | `path-control` | `request-filters`, `upstream-request`, `upstream-response` | — |
 | A filter phase | — | `filter` nodes |
 
@@ -223,7 +224,7 @@ services {
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `route-cache-dynamic-capacity` | 10000 | Max entries in this service's dynamic route cache. |
+| `route-cache-dynamic-capacity` | 10000 | Max entries in this service's dynamic route cache. Only routes with regex or complex matchers use this cache — prefix-only routes use a separate static index. Increase if you have a large number of distinct request paths and observe cache evictions in the metrics. For most deployments the default is sufficient. |
 | `keepalive-timeout-secs` | 60 | How long an idle **downstream** (client) H1 connection is held open waiting for the next request. `0` means no cap — defer entirely to the client's `Keep-Alive` header. No effect on H2 connections. |
 
 ---
@@ -542,6 +543,16 @@ system {
 | `timeout-secs` | no | 5 | Per-query timeout in seconds before the resolver retries or fails. |
 | `attempts` | no | 2 | Number of retry attempts per DNS query before returning a failure. |
 
+The connector-level `dns-interval-secs` attribute controls how often Flow re-resolves that specific hostname (default `30` seconds). Set it on the connector line, not in `dns-resolver`:
+
+```kdl
+"catalog.internal:443" proto="h2-or-h1" dns-interval-secs=30
+```
+
+| Connector attribute | Default | Meaning |
+|---|---|---|
+| `dns-interval-secs` | `30` | Seconds between DNS re-resolution attempts for this hostname. Only applies to `discovery "Dns"` connectors; ignored on IP-address connectors. Lower values pick up DNS changes faster at the cost of more resolver queries. |
+
 ### Health checking
 
 Flow can periodically probe each backend and remove unhealthy ones from the pool.
@@ -569,7 +580,115 @@ connectors {
 
 All fields except `health-check "Active"` are optional; the defaults shown apply. Health checking works with both static IP and DNS-discovered connectors.
 
+| Field | Default | Meaning |
+|---|---|---|
+| `health-check-path` | `"/healthz"` | HTTP path Flow sends the GET probe to. Change this if your backend exposes a health endpoint at a different path. |
+| `health-check-interval-secs` | `10` | Seconds between probes per backend. Lower values detect failures faster but add more background traffic. |
+| `health-check-timeout-secs` | `2` | How long Flow waits for a probe response before counting it as a failure. Should be less than `health-check-interval-secs`. |
+| `unhealthy-threshold` | `3` | Consecutive probe failures before a backend is removed from the pool. Higher values avoid removing a backend on a transient blip. |
+| `healthy-threshold` | `2` | Consecutive probe successes before a removed backend is returned to the pool. Prevents flapping on a backend that is still unstable. |
+
 **Fail-open**: when all backends are marked unhealthy, Flow routes requests anyway rather than returning errors immediately. This prevents a misconfigured probe from taking a service offline.
+
+**Active vs passive health checking**: `health-check "Active"` is *active* — Flow sends synthetic probes independent of real traffic, catching backends that are completely down before any client request hits them. It does not catch backends that are alive and pass `/healthz` but are failing real requests (overloaded, partially broken). That is *passive* failure detection, handled by circuit breaking. See [Design Decisions → How Should I Handle Backend Failures?](design-decisions.md#how-should-i-handle-backend-failures) for a full comparison.
+
+### Circuit breaking
+
+Circuit breaking lives inside `load-balance` rather than `path-control` because it operates at the **backend selection layer**, not the request pipeline layer. Policies in `path-control` run after a route is matched but before a backend is chosen — they don't know which specific backend will serve the request. Circuit breaking needs to track the outcome *per backend* (which backend returned a 5xx, which backend's connection failed) and gate future requests to that specific backend. That coupling to backend identity is why it sits alongside `selection`, `health-check`, and `discovery`, not alongside `ip-restriction` or `rate-limit`.
+
+Circuit breaking observes real request outcomes on live traffic. When the error rate (HTTP 5xx responses and connection failures) exceeds a threshold in a time window, the per-backend circuit opens and requests fail fast. After a cooldown the circuit becomes half-open — a small number of probe requests are allowed through; success closes the circuit, failure reopens it.
+
+```kdl
+connectors {
+    load-balance {
+        selection "RoundRobin"
+        circuit-breaker {
+            error-threshold-pct 50   // trip at 50% errors — default
+            window-secs 60           // 60-second window — default
+            min-requests 5           // need 5 requests before tripping — default
+            cooldown-secs 30         // 30s open before trying half-open — default
+            probe-requests 1         // 1 probe request per half-open cycle — default
+            window-strategy "SlidingWindow"  // see Window strategy below — default
+        }
+    }
+    "10.0.0.1:3000"
+    "10.0.0.2:3000"
+}
+```
+
+All fields are optional; the defaults above apply.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `error-threshold-pct` | `50` | Integer 1–100. The circuit opens when this percentage of requests in the window return a 5xx response. Lower values trip faster; higher values tolerate more errors before opening. |
+| `window-secs` | `60` | How far back (in seconds) to look when calculating the error rate. Shorter windows react faster to sudden failures; longer windows smooth over brief spikes. |
+| `min-requests` | `5` | Minimum number of requests in the window before the circuit can trip. Prevents tripping on the very first error at startup or after a long idle period. |
+| `cooldown-secs` | `30` | How long (in seconds) the circuit stays open before moving to half-open and allowing probe requests. Gives the backend time to recover before traffic resumes. |
+| `probe-requests` | `1` | Number of requests allowed through in half-open state. A successful probe closes the circuit; any failure re-opens it and resets the cooldown. Higher values give more confidence before closing but delay recovery. |
+| `window-strategy` | `"SlidingWindow"` | How outcomes are tracked — `"SlidingWindow"` (exact, default) or `"TimeBuckets"` (fixed-memory, approximate). See [Window strategy](#window-strategy) below. |
+| `bucket-count` | `10` | Number of time buckets. Only valid with `window-strategy "TimeBuckets"`. Must be ≥ 2. Slot width = `window-secs / bucket-count` seconds. |
+
+You can combine `circuit-breaker` with `health-check "Active"` — they catch complementary failure modes. Circuit breaking catches backends that pass health probes but fail real requests; active health checking catches backends that are completely down.
+
+**Fail-open**: the same policy as active health checking — if all backends on a route are circuit-open, Flow routes requests anyway rather than returning errors to every client.
+
+#### Window strategy
+
+Two strategies control how request outcomes are tracked within the window:
+
+| Strategy | How it works | Best for |
+|---|---|---|
+| `"SlidingWindow"` (default) | Exact per-request tracking. Every outcome is stored with a timestamp; entries outside the window are discarded on each new request. | Most routes. Start here. Memory grows with traffic — at 1,000 req/s with a 60 s window, roughly 1 MB per backend. |
+| `"TimeBuckets"` | Divides the window into `bucket-count` fixed-width time slots. Each slot holds aggregate success/failure counts. Stale slots reset lazily on next write. Error rate has ±one slot-width of approximation. | Routes with very high request rates (tens of thousands per second per backend), or when you need a fixed, predictable memory footprint regardless of traffic. |
+
+**Rule of thumb**: use `"SlidingWindow"` unless you have a specific reason not to. Switch to `"TimeBuckets"` when the route is handling tens of thousands of requests per second per backend and you want to cap per-backend circuit-breaker memory to a known constant (a few hundred bytes).
+
+**Example — SlidingWindow (default)**
+
+Exact tracking. Suitable for most routes. `window-strategy` can be omitted since `"SlidingWindow"` is the default.
+
+```kdl
+connectors {
+    load-balance {
+        selection "RoundRobin"
+        circuit-breaker {
+            error-threshold-pct 50
+            window-secs 60
+            min-requests 5
+            cooldown-secs 30
+            probe-requests 1
+            window-strategy "SlidingWindow"
+        }
+    }
+    "10.0.0.1:3000"
+    "10.0.0.2:3000"
+}
+```
+
+**Example — TimeBuckets**
+
+Fixed-memory approximation. Use for high-traffic routes or when predictable memory is required. `bucket-count` sets the number of time slots; the example gives 10 × 6-second slots for a 60-second window.
+
+```kdl
+connectors {
+    load-balance {
+        selection "RoundRobin"
+        circuit-breaker {
+            error-threshold-pct 50
+            window-secs 60
+            min-requests 5
+            cooldown-secs 30
+            probe-requests 1
+            window-strategy "TimeBuckets"
+            bucket-count 10
+        }
+    }
+    "10.0.0.1:3000"
+    "10.0.0.2:3000"
+}
+```
+
+`bucket-count` is only valid when `window-strategy` is `"TimeBuckets"` — setting it with `"SlidingWindow"` is a configuration error. The slot width is `window-secs / bucket-count` seconds; with the example values each slot covers 6 seconds, so the error rate can be up to 6 seconds stale at the window boundary.
 
 ### Protocol and TLS
 

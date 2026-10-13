@@ -98,6 +98,51 @@ See [Configuration Reference](configuration.md) for syntax.
 
 ---
 
+## How Should I Handle Backend Failures?
+
+Flow has two complementary mechanisms. They catch different failure modes and work best together.
+
+### Active health checking (available today)
+
+Flow sends periodic synthetic probe requests (`GET /healthz` by default) to each backend on a background timer, independent of real traffic.
+
+- **Catches**: backends that are completely down, backends that stopped accepting connections, backends that were never healthy to begin with
+- **Does not catch**: backends that accept connections and pass `/healthz` but fail real requests (overloaded, partially broken application state)
+- **Recovery**: automatic — a backend is restored to the pool after `healthy-threshold` consecutive probe successes
+- **Configuration**: `health-check "Active"` in the `load-balance` block
+
+```kdl
+load-balance {
+    selection "RoundRobin"
+    health-check "Active"
+    health-check-path "/healthz"
+    unhealthy-threshold 3
+    healthy-threshold 2
+}
+```
+
+### Circuit breaking
+
+Flow observes real request outcomes (HTTP 5xx responses) on the live traffic path and trips a per-backend circuit after a configurable error rate is exceeded in a sliding window.
+
+- **Catches**: backends that are alive and pass health probes but are failing real requests — overloaded backends, partial failures, degraded app state
+- **Does not catch**: backends that go down before any real traffic hits them (active health checking handles that)
+- **Recovery**: after a cooldown period, Flow allows a small number of probe requests through (half-open state); success closes the circuit, failure re-opens it
+- **Configuration**: `circuit-breaker { … }` block inside `load-balance` — see [Configuration](configuration.md#circuit-breaking)
+
+### Which to use
+
+| Scenario | Use |
+|---|---|
+| Backend crashes or becomes unreachable | Active health checking |
+| Backend is alive but returning errors | Circuit breaking |
+| Both | Both together — they cover complementary failure modes |
+| No session state, orchestrator handles health | Neither — let Kubernetes remove pods from DNS |
+
+**Fail-open**: both mechanisms use fail-open when all backends are affected — Flow routes requests anyway rather than serving 502 to every client. This avoids a misconfigured probe or threshold taking a service offline entirely.
+
+---
+
 ## Which Policies Should I Use?
 
 Policies are filters that run on requests (rate limiting, IP blocking) or responses (header rewriting, timing injection). Apply them per-route.

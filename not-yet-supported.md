@@ -36,12 +36,12 @@ Flow can proxy gRPC traffic because gRPC runs on HTTP/2 (or HTTP/1.1 with custom
 
 ## Upstream Health Checking
 
-**Status**: Shipped — see [Configuration → Health checking](configuration.md#health-checking) for the full syntax and options.
+**Status**: Both active health checking and circuit breaking are shipped.
 
-Flow supports active HTTP health checking via `health-check "Active"` in the `load-balance` block. Backends are removed from the pool after configurable failure thresholds and restored automatically after recovery.
+- **Active health checking** — see [Configuration → Health checking](configuration.md#health-checking) for syntax and options.
+- **Circuit breaking** — see [Configuration → Circuit breaking](configuration.md#circuit-breaking) for syntax and options.
 
-**Planned**:
-- Circuit breaking (passive failure-based exclusion without periodic probes) is planned for a future release.
+For the difference between them, see [Design Decisions → How Should I Handle Backend Failures?](design-decisions.md#how-should-i-handle-backend-failures).
 
 ---
 
