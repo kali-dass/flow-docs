@@ -6,6 +6,18 @@
 
 ### New features
 
+- **[Circuit breaking](configuration.md#circuit-breaking)** — passive per-backend failure detection on real request outcomes. Add `circuit-breaker { … }` inside any `load-balance` block. Three-state machine (`Closed` → `Open` → `HalfOpen`) with configurable error rate threshold, time window, cooldown period, and probe count. Two window strategies: `"SlidingWindow"` (exact, default) and `"TimeBuckets"` (fixed-memory, for high-traffic routes). Fail-open when all backends are tripped. Compatible with `health-check "Active"`.
+
+- **[Active upstream health checking](configuration.md#health-checking)** — periodic HTTP probes per backend. Enable with `health-check "Active"` in any `load-balance` block. Configurable probe path, interval, timeout, and thresholds for marking unhealthy and recovering. Fail-open: when all backends are unhealthy, requests route anyway rather than failing.
+
+- **[IP restriction](policies/ip-restriction.md)** — allow or block requests by source IP address. Supports allow-only mode, deny-only mode, and combined mode (deny wins). Configurable rejection status code and message. Accepts IPv4 and IPv6 CIDR ranges.
+
+- **Real client IP resolution** — `real-ip-source` and `trusted-proxies` fields under `system`. All IP-based policies now resolve the effective client IP from `X-Forwarded-For` (or a named header) when set, rather than always using the raw TCP peer address. A trusted-proxy list is required when using XFF — Flow refuses to start without one, preventing IP spoofing. See [Configuration Reference](configuration.md#real-ip-source).
+
+- **`X-Forwarded-For` outbound** — Flow now writes `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` on every upstream request. Incoming headers are stripped before injection when the TCP peer is not in `trusted-proxies`, preventing header chain spoofing.
+
+- **[DNS upstream discovery](configuration.md#dns-discovery)** — connector addresses can now be hostnames (`backend.internal:3000`) in addition to literal IP:port. Flow re-resolves them on a configurable interval (`dns-interval-secs`) so backends can be updated without a config change or restart. Requires a `system { dns-resolver { … } }` block or defaults to the system resolver.
+
 - **[Token authentication](policies/token-auth.md)** — unified policy (`token-auth`) supporting
   two modes on the same route:
   - **JWT mode** (`mode "jwt"`): verifies signed tokens against a JWKS endpoint or a
@@ -21,12 +33,20 @@
     so credentials are never sent to backends.
   - `realm` controls the `WWW-Authenticate` challenge returned on `401`.
 
+### Fixes
+
+- **Wrong-phase filter error now names the correct phase.** Placing a policy in a block it does not support (e.g. `token-auth` in `upstream-response`) now produces `"filter 'token-auth' is not valid in upstream-response — place it in request-filters"` instead of the misleading `"Unknown upstream response filter: 'token-auth'"`.
+
 ### Config changes / migration
 
 - **`jwt-validate` is replaced by `token-auth`** — the `jwt-validate` policy kind is removed.
   Existing configs must change `filter kind="jwt-validate"` to `filter kind="token-auth"` and
   add `mode "jwt"`. See [Token Authentication](policies/token-auth.md) for the full reference
   and migration example.
+
+- **`block-cidr-range` renamed to `ip-restriction`** — update `kind="block-cidr-range"` to `kind="ip-restriction"` in all configs. No behaviour change.
+
+- **`rate-limit` replaces three separate policies** — `rate-limit-single-uri-group`, `rate-limit-multi-source-ip`, and `rate-limit-multi-uri` are removed. Use `kind="rate-limit"` with the appropriate `key-from` value (`uri-group`, `source-ip`, or `uri`). See [Rate limiting](policies/rate-limiting.md).
 
 ---
 

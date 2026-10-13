@@ -28,7 +28,7 @@ Placing a policy in a phase it does not support is a configuration error. Flow c
 For example, putting `token-auth` in `upstream-response` produces an error like:
 
 ```
-Unknown upstream response filter: 'token-auth'
+filter 'token-auth' is not valid in upstream-response — place it in request-filters
 ```
 
 The fix is always to move the filter to a block it supports. The table above shows which phases each policy accepts (✓) and which it does not (—). A policy placed in a — column will always be rejected.
