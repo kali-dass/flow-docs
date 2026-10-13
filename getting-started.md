@@ -7,9 +7,17 @@
 
 This guide takes you from an empty directory to a working proxy in a few minutes.
 
+## Supported operating systems
+
+| OS | Status |
+|---|---|
+| **Linux** | Fully supported. All features including graceful in-place upgrades (`--upgrade`). |
+| **macOS** | Supported for development and testing. All features work except `--upgrade` (Linux-only). |
+| **Windows** | Not supported as a native binary. Run Flow in Docker — the container image is Linux and all features work. |
+
 ## Prerequisites
 
-- The `flow` binary
+- The `flow` binary (or a Docker image — see above if you are on Windows)
 - A valid **license file** — Flow refuses to start without one; see [Licensing](license.md)
 - A backend service to proxy to — anything that answers HTTP will do
 

@@ -155,6 +155,22 @@ upstream { proto "h2-or-h1" }
 
 ---
 
+## Operating System Support
+
+**Constraint**: Flow runs on Linux and macOS. Windows is not supported as a native binary.
+
+| OS | Status | Notes |
+|---|---|---|
+| **Linux** | Fully supported | All features, including graceful in-place upgrades (`--upgrade`) |
+| **macOS** | Development and testing | All features work except `--upgrade`, which is Linux-only and panics immediately if attempted on macOS |
+| **Windows** | Not supported (native) | Run Flow in Docker — the Linux container image has full feature support including `--upgrade` |
+
+**Why `--upgrade` is Linux-only**: graceful in-place upgrades work by forking the process, transferring open listener file descriptors from the old process to the new one over a Unix domain socket, then draining the old process. The file-descriptor passing mechanism (`SCM_RIGHTS` ancillary data) is a Linux/Unix kernel feature with no equivalent in the Windows process model. macOS supports the same mechanism in principle but Flow's upgrade path has only been tested and validated on Linux.
+
+**Production deployments on Windows**: use Docker. The container runs Linux, so all features — including `--upgrade` for zero-downtime restarts — work identically to a Linux deployment. No code changes or configuration differences are needed.
+
+---
+
 ## Next Steps
 
 - **Sizing a deployment?** See [Performance](performance.md) for detailed capacity numbers
