@@ -5,12 +5,11 @@
 > **Understanding limitations?** See [Limitations](limitations.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
 
-Policies (called *filters* in the config) inspect or rewrite traffic as it passes through
-Flow. They are declared in a `path-control` block.
+Flow has three kinds of policy attachment:
 
-> **Circuit breaking and active health checking are not path-control policies.** They are backend-selection features that live inside `load-balance` on a connector — they gate which backends can receive a request, not what happens to the request itself. They are listed separately in [Load balancer features](#load-balancer-features) below.
-
-> **Cache response is not a path-control filter.** It is a route-level block (`cache-response { }`) placed directly on a `route`, not inside `path-control`. It is listed separately below.
+- **`path-control` filters** — declared in a `path-control` block on a service or route; inspect or rewrite traffic as it passes through.
+- **Route-level blocks** — declared directly on a `route` (e.g. `cache-response`); apply only to that route.
+- **Load balancer features** — declared inside `load-balance` on a connector (e.g. `circuit-breaker`, `health-check`); gate which backends receive requests.
 
 ## Available policies
 
@@ -40,23 +39,20 @@ These are configured inside a `load-balance` block on a connector, not in `path-
 | Resilience | [Health checking](policies/health-checking.md) | Active (synthetic HTTP probes) and passive (circuit breaking) backend failure detection — use one or both |
 | Resilience | [Circuit breaker](policies/circuit-breaker.md) | Full reference for passive health checking — trips a backend when its error rate exceeds a threshold, recovers automatically |
 
-## Wrong-phase errors
-
-Placing a policy in a phase it does not support is a configuration error. Flow catches it at startup — **before serving any traffic** — and refuses to start.
-
-For example, putting `token-auth` in `upstream-response` produces an error like:
-
-```
-filter 'token-auth' is not valid in upstream-response — place it in request-filters
-```
-
-The fix is always to move the filter to a block it supports. The table above shows which phases each policy accepts (✓) and which it does not (—). A policy placed in a — column will always be rejected.
-
-**This is enforced at load, not at request time.** A misconfigured policy cannot silently pass traffic through or apply to the wrong requests — the process will not start until the config is corrected.
-
 ## Where policies attach
 
-`path-control` can sit at the **service** level — applying to every request the service
+Flow has three attachment points. Each one controls a different scope:
+
+| Attachment | Block | Scope | Policies |
+|---|---|---|---|
+| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `upsert-header`, `remove-header-key-regex`, `timing-header` |
+| `path-control` at route level | `route { path-control { … } }` | Requests matching that route only — service-level runs first | Same set as above |
+| Route-level block | `route { cache-response { … } }` | Requests matching that route only — outside `path-control` | `cache-response` |
+| `load-balance` on a connector | `connectors { load-balance { … } }` | Backend selection for all routes using that connector | `circuit-breaker`, `health-check` |
+
+### Path-control (service and route level)
+
+`path-control` filters can sit at the **service** level — applying to every request the service
 handles — or on an individual **route**. Service-level filters run first.
 
 ```kdl
@@ -84,6 +80,58 @@ services {
     }
 }
 ```
+
+### Route-level blocks
+
+`cache-response` is placed directly on a `route`, outside any `path-control` block. It applies
+to requests matching that route only and cannot be placed at the service level.
+
+```kdl
+route {
+    match { path-prefix "/api/v1" }
+    upstream "backend"
+    cache-response {
+        ttl-secs 60
+    }
+}
+```
+
+### Connector-level (load-balance)
+
+`circuit-breaker` and `health-check` live inside a `load-balance` block on a **connector** —
+not on a route or service. They gate which backends can receive a request before any
+`path-control` filter runs.
+
+```kdl
+connectors {
+    backend {
+        load-balance {
+            selection "RoundRobin"
+            health-check "Active"
+            circuit-breaker {
+                error-threshold-pct 50
+                window-secs 60
+            }
+        }
+        "10.0.0.1:3000"
+        "10.0.0.2:3000"
+    }
+}
+```
+
+## Wrong-phase errors
+
+Placing a policy in a phase it does not support is a configuration error. Flow catches it at startup — **before serving any traffic** — and refuses to start.
+
+For example, putting `token-auth` in `upstream-response` produces an error like:
+
+```
+filter 'token-auth' is not valid in upstream-response — place it in request-filters
+```
+
+The fix is always to move the filter to a block it supports. The [Available policies](#available-policies) table shows which phases each policy accepts (✓) and which it does not (—). A policy placed in a — column will always be rejected.
+
+**This is enforced at load, not at request time.** A misconfigured policy cannot silently pass traffic through or apply to the wrong requests — the process will not start until the config is corrected.
 
 ## The three phases
 
