@@ -291,6 +291,86 @@ filter kind="token-auth" client-id-claim="azp" tenant-id-claim="org_id" scopes-c
 }
 ```
 
+### How downstream policies use these fields
+
+Once extracted, the identity fields are available to every policy that runs after `token-auth`
+on the same route.
+
+**Rate limiting by authenticated client** — `key-from "client-id"` reads `client_id`:
+
+```kdl
+path-control {
+    request-filters {
+        filter kind="token-auth" client-id-claim="sub" { issuers { ... } }
+        // Each verified client gets its own rate-limit bucket:
+        filter kind="rate-limit" key-from="client-id" \
+            max-tokens=100 refill-qty=10 refill-interval-ms=1000 \
+            max-buckets=100000 threads=8
+    }
+}
+```
+
+**Cache isolation per user** — `identity-from "client-id"` reads `client_id`:
+
+```kdl
+path-control {
+    request-filters {
+        filter kind="token-auth" client-id-claim="sub" { issuers { ... } }
+    }
+}
+cache-response {
+    ttl-secs 60
+    identity-from "client-id"   // each user gets their own cache namespace
+}
+```
+
+**Cache isolation per tenant** — `identity-from "tenant-id"` reads `tenant_id`; all users
+in the same tenant share a namespace:
+
+```kdl
+path-control {
+    request-filters {
+        filter kind="token-auth" client-id-claim="sub" tenant-id-claim="org_id" {
+            issuers { ... }
+        }
+    }
+}
+cache-response {
+    ttl-secs 300
+    identity-from "tenant-id"   // all users in same tenant share cache
+}
+```
+
+**Cache isolation by a nested JWT claim** — use `identity-from "claim:<path>"` with a JSON
+Pointer when the identifier is nested inside the token. Requires `expose-claims true`:
+
+```kdl
+path-control {
+    request-filters {
+        filter kind="token-auth" expose-claims=true { issuers { ... } }
+    }
+}
+cache-response {
+    ttl-secs 60
+    identity-from "claim:/context/tenant/id"   // reads claims["context"]["tenant"]["id"]
+}
+```
+
+`client-id-claim` and `tenant-id-claim` accept a flat claim name or a JSON Pointer path
+(RFC 6901) for nested claims. JSON Pointer paths start with `/`; anything else is a flat
+literal key (including URI-style names that contain `/`).
+
+| Value | Meaning |
+|---|---|
+| `"sub"` | Flat literal key `claims["sub"]` |
+| `"azp"` | Flat literal key `claims["azp"]` |
+| `"https://myapp.com/org_id"` | Flat literal key — URI-style names containing `/` are literals, not pointers (no leading `/`) |
+| `"/org/id"` | One level deep: `claims["org"]["id"]` |
+| `"/context/tenant/id"` | Two levels deep: `claims["context"]["tenant"]["id"]` |
+| `"/org~1division"` | Key with `/` in name: `claims["org/division"]` (`~1` → `/`) |
+| `"/user~0role"` | Key with `~` in name: `claims["user~role"]` (`~0` → `~`) |
+| `"/a~01b"` | Key with literal `~1` in name: `claims["a~1b"]` — `~1` applied before `~0` (RFC 6901 §3) |
+
 ### `expose-claims`
 
 ```kdl

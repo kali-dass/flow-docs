@@ -40,14 +40,15 @@ For "Is Flow right for us?" — clarification on scope for evaluating whether Fl
 - Not a service mesh
 - Not a full load balancer (active health checking is supported; geographic routing and cross-region failover are not)
 - Not a WAF
-- Not a cache
-- Not a full API Gateway today (per-user rate limiting, transformation, caching, CORS, circuit breaking, and more are **planned for API Gateway Phase 1**)
+- Response caching is supported — see [Cache response](policies/cache-response.md)
+- Circuit breaking is supported — see [Configuration → Circuit breaking](configuration.md#circuit-breaking)
+- Not a full API Gateway today (request validation, CORS, gRPC transcoding, and more are planned for API Gateway Phase 1)
 
 ---
 
 ## Quick Answers
 
-**Can Flow cache responses?** Not yet. Response caching is planned for API Gateway Phase 1 (TTL-based, `Cache-Control` aware). Until then, use a caching layer (CDN, Varnish, etc.) upstream if needed.
+**Can Flow cache responses?** Yes — add a `cache-response { }` block to any route. TTL-based, in-memory, `Cache-Control` aware. Supports Vary-based variants, per-identity isolation, and configurable status codes, body size limits, and key headers. See [Cache response](policies/cache-response.md).
 
 **Can Flow do gRPC?** It can proxy gRPC traffic (gRPC uses HTTP/2), but we haven't validated it against real gRPC traffic yet. See [gRPC](not-yet-supported.md#grpc).
 

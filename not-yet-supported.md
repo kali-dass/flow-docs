@@ -34,15 +34,6 @@ Flow can proxy gRPC traffic because gRPC runs on HTTP/2 (or HTTP/1.1 with custom
 - We plan to validate against gRPC Go client library and common gRPC services
 - Will document known issues and workarounds
 
-## Upstream Health Checking
-
-**Status**: Both active health checking and circuit breaking are shipped.
-
-- **Active health checking** — see [Configuration → Health checking](configuration.md#health-checking) for syntax and options.
-- **Circuit breaking** — see [Configuration → Circuit breaking](configuration.md#circuit-breaking) for syntax and options.
-
-For the difference between them, see [Design Decisions → How Should I Handle Backend Failures?](design-decisions.md#how-should-i-handle-backend-failures).
-
 ---
 
 ## Next Steps

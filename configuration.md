@@ -54,7 +54,7 @@ the second occurrence.
 | A service | `listeners`, `routes`, `path-control`, `route-cache-dynamic-capacity`, `keepalive-timeout-secs` | — |
 | `listeners` | — | listener address lines |
 | `routes` | — | `route` blocks |
-| A route | `match`, `connectors`, `allowed-methods`, `allowed-protocols`, `path-control` | — |
+| A route | `match`, `connectors`, `allowed-methods`, `allowed-protocols`, `path-control`, `cache-response` | — |
 | `match` | the matcher | sub-matchers inside `all` / `any` |
 | `connectors` | `load-balance` | backend address lines |
 | A connector | each attribute (`proto`, `tls-sni`, `max-h2-streams`, timeouts…) — each once | — |
@@ -360,7 +360,8 @@ routes {
         allowed-protocols "http" "https" "h1" "h2"
 
         connectors { ... }
-        path-control { ... }   // optional, per-route
+        path-control { ... }       // optional, per-route
+        cache-response { ... }     // optional, per-route — see Cache response policy
     }
 }
 ```
@@ -552,6 +553,12 @@ The connector-level `dns-interval-secs` attribute controls how often Flow re-res
 | Connector attribute | Default | Meaning |
 |---|---|---|
 | `dns-interval-secs` | `30` | Seconds between DNS re-resolution attempts for this hostname. Only applies to `discovery "Dns"` connectors; ignored on IP-address connectors. Lower values pick up DNS changes faster at the cost of more resolver queries. |
+
+**Startup behavior**: Flow resolves every DNS connector hostname at startup before opening any listener. If a hostname fails to resolve at startup, Flow logs an error and starts with an empty backend pool for that connector — requests to routes backed by that connector receive `502` until the next re-resolution succeeds. Flow does not refuse to start on a DNS failure; a transient resolver blip does not prevent the process from coming up.
+
+**Re-resolution**: background re-resolution runs on the `dns-interval-secs` timer. If a re-resolution query fails (NXDOMAIN, timeout), the existing pool is kept — the last known-good addresses continue serving traffic. Flow logs a warning on each failure. A successful re-resolution replaces the pool atomically.
+
+**Hostname format**: use `host:port`, not a bare hostname. Flow does not infer a default port from the scheme.
 
 ### Health checking
 

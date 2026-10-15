@@ -234,6 +234,41 @@ Flow probes each backend independently on the configured interval. A backend is 
 
 Without health checking (`health-check "None"`, the default), failures are only discovered when a request fails — put a health-checking layer upstream of Flow, or use DNS-based backend removal, if you need automatic failover without probing.
 
+## Circuit breaking
+
+Circuit breaking detects backends that are returning errors on real traffic — it complements active health checking, which only detects completely unresponsive backends. See [Circuit breaker](policies/circuit-breaker.md) for the full reference.
+
+Configure it in the `load-balance` block of any connector:
+
+```kdl
+load-balance {
+    selection "RoundRobin"
+    circuit-breaker {
+        error-threshold-pct 50      // trip when ≥50% of requests fail (default)
+        window-secs 10              // over this rolling window (default: 10s)
+        min-requests 5              // require at least this many requests before tripping (default: 5)
+        cooldown-secs 30            // stay Open for this long before trying a probe (default: 30s)
+        probe-requests 1            // send this many probes in HalfOpen before closing (default: 1)
+    }
+}
+```
+
+**Three-state machine**: `Closed` (normal) → `Open` (tripped, requests return 502) → `HalfOpen` (probe in progress) → back to `Closed` or `Open` depending on probe outcome.
+
+**Fail-open**: if all backends in a pool are tripped simultaneously, Flow routes requests anyway rather than returning 502 for everything. This prevents a cascading failure from taking the service offline entirely.
+
+**Two window strategies** (`window-strategy`):
+- `"SlidingWindow"` (default) — exact rolling count; use this unless the route handles tens of thousands of requests per second per backend.
+- `"TimeBuckets"` — fixed memory footprint regardless of request volume; set `bucket-count` to control granularity. Use for very high-traffic routes where per-request sliding-window memory adds up.
+
+**What to watch for in production**:
+- A backend tripped to `Open` logs at `warn` level with the backend address and error rate.
+- Probe outcomes (HalfOpen → Closed or HalfOpen → Open) are also logged at `info`/`warn`.
+- Unexpected all-backends-tripped events log at `error` — investigate backend health immediately.
+- If circuit breaking is tripping too aggressively, raise `error-threshold-pct` or `min-requests`; if recovery is too slow, reduce `cooldown-secs`.
+
+Combine with `health-check "Active"` for defense in depth: health checking removes completely down backends before circuit breaking even sees them; circuit breaking handles backends that pass probes but fail real requests.
+
 ## Troubleshooting
 
 ### 502s on a connector with `proto="h2-only"`

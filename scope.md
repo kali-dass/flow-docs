@@ -71,7 +71,7 @@ via sidecars — one proxy per pod/container.
   hostnames is supported; dynamic registry sync is not)
 - No distributed tracing built-in yet — OpenTelemetry support is planned
 - No mesh-wide mTLS enforcement — only Flow↔backend TLS
-- No circuit breaker yet — planned in Phase 1
+- Circuit breaking is supported — passive per-backend failure detection via `circuit-breaker { }` in `load-balance`
 
 **When to use Flow instead of a service mesh**:
 - You have a central gateway and a set of backend services
@@ -99,7 +99,7 @@ with active health checking, geographic routing, and cross-region failover.
 - ✅ HTTP/2-aware load balancing (round-robin, random, consistent hashing) across configured backends
 - ✅ DNS name resolution for upstream hostnames with background refresh
 - ✅ Active health checking — `health-check "Active"` in the `load-balance` block
-- ⏳ Circuit breaking on upstream errors — **planned in Phase 1**
+- ✅ Circuit breaking on upstream errors — `circuit-breaker { }` inside any `load-balance` block
 - ❌ Geographic routing — not planned
 - ❌ Cross-region failover — not planned
 - ❌ Non-HTTP protocols (TCP, UDP) — not planned
@@ -169,29 +169,39 @@ Internet
 
 ---
 
-## Not a Cache (Yet)
+## Response Caching
 
 **Caches** (Varnish, CDN, Redis) store responses and serve them on subsequent identical
 requests without touching the backend.
 
-**Flow does not cache responses today.** Every request is forwarded to the backend.
+**Flow includes in-process response caching** via the `cache-response` route block.
+Add it to any route to cache upstream responses in memory:
 
-**Response caching is planned for API Gateway Phase 1:**
-- TTL-based cache for `GET` responses, keyed on method + path + query + optional headers
-- `Cache-Control: max-age` / `s-maxage` respected
-- Configurable maximum body size and total cache capacity
-- Streaming responses (SSE, chunked) are bypassed automatically
+```kdl
+route {
+    match { path-prefix "/api/catalog" }
+    allowed-methods "GET" "HEAD"
+    allowed-protocols "http" "https"
+    connectors { "backend:3000" }
+    cache-response {
+        ttl-secs 60
+        cache-status-codes 200
+    }
+}
+```
 
-**When you need caching today**, add a dedicated cache layer:
+Key properties: TTL-based, `Cache-Control` aware, Vary-header support, per-identity isolation
+when used with `token-auth`, configurable body size limit and total capacity. The cache is
+in-process memory — cleared on restart, no cross-instance sharing. See
+[Cache response](policies/cache-response.md) for the full option reference.
+
+**For distributed caching** (shared across Flow instances, persistent across restarts), use an
+external cache layer alongside Flow:
 
 ```
-Flow
-  |
-  v
-[Cache Layer] (Varnish, Redis, CDN)
-  |
-  v
-[Backends]
+Flow (node 1) ─┐
+               ├─> [Redis / CDN] ──> [Backends]
+Flow (node 2) ─┘
 ```
 
 Or use a CDN for static content alongside Flow for dynamic APIs:

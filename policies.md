@@ -8,7 +8,9 @@
 Policies (called *filters* in the config) inspect or rewrite traffic as it passes through
 Flow. They are declared in a `path-control` block.
 
-> **Circuit breaking is not a policy.** It is backend-selection logic — it gates whether a specific backend can receive a request based on that backend's recent error history. Because it tracks state per backend (not per request), it lives inside `load-balance` rather than `path-control`. See [Configuration → Circuit breaking](configuration.md#circuit-breaking).
+> **Circuit breaking and active health checking are not path-control policies.** They are backend-selection features that live inside `load-balance` on a connector — they gate which backends can receive a request, not what happens to the request itself. They are listed separately in [Load balancer features](#load-balancer-features) below.
+
+> **Cache response is not a path-control filter.** It is a route-level block (`cache-response { }`) placed directly on a `route`, not inside `path-control`. It is listed separately below.
 
 ## Available policies
 
@@ -20,6 +22,23 @@ Flow. They are declared in a `path-control` block.
 | Transformation | [Upsert header](policies/upsert-header.md) | — | ✓ | ✓ | Set a header on the upstream request or the response |
 | Transformation | [Remove header](policies/remove-header-key-regex.md) | — | ✓ | ✓ | Strip headers whose name matches a regex pattern |
 | Observability | [Timing header](policies/timing-header.md) | — | — | ✓ | Add upstream and total latency timing headers to the response |
+
+## Route-level features
+
+These are configured as blocks directly on a `route`, not inside `path-control`.
+
+| Category | Feature | What it does |
+|---|---|---|
+| Caching | [Cache response](policies/cache-response.md) | Cache upstream responses in memory; serve hits without contacting the backend |
+
+## Load balancer features
+
+These are configured inside a `load-balance` block on a connector, not in `path-control` or on a route. They act on backend selection, not on individual request/response headers.
+
+| Category | Feature | What it does |
+|---|---|---|
+| Resilience | [Health checking](policies/health-checking.md) | Active (synthetic HTTP probes) and passive (circuit breaking) backend failure detection — use one or both |
+| Resilience | [Circuit breaker](policies/circuit-breaker.md) | Full reference for passive health checking — trips a backend when its error rate exceeds a threshold, recovers automatically |
 
 ## Wrong-phase errors
 
