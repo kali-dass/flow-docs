@@ -12,6 +12,8 @@
 
 - **[Active upstream health checking](configuration.md#health-checking)** — periodic HTTP probes per backend. Enable with `health-check "Active"` in any `load-balance` block. Configurable probe path, interval, timeout, and thresholds for marking unhealthy and recovering. Fail-open: when all backends are unhealthy, requests route anyway rather than failing.
 
+- **[Correlation ID](policies/correlation-id.md)** — inject or preserve a correlation ID on every request. Two generators: `uuid-counter` (unique UUID prefix per worker + monotonic counter suffix, default) and `uuid-v4` (fully random). `trust-incoming=true` (default) reuses a supplied `x-request-id` header for end-to-end tracing; `trust-incoming=false` always generates a fresh ID. `echo-downstream=true` writes the ID back to the response. The ID is propagated to the upstream on every request regardless of these settings.
+
 - **[Request termination](policies/request-termination.md)** — return a configured HTTP response immediately without calling the upstream. Supports status-only (bare 503), plain `message` (auto-wrapped as `{"message":"..."}`), raw `body` + `content-type` (HTML, XML, custom JSON), optional `trigger` header/query-param for conditional activation, and a `headers { }` block for extra response headers like `Retry-After`. Use cases: maintenance mode, deprecated endpoint sunset, emergency kill switch, static mock responses.
 
 - **[IP restriction](policies/ip-restriction.md)** — allow or block requests by source IP address. Supports allow-only mode, deny-only mode, and combined mode (deny wins). Configurable rejection status code and message. Accepts IPv4 and IPv6 CIDR ranges.

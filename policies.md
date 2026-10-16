@@ -21,6 +21,7 @@ Flow has three kinds of policy attachment:
 | Traffic Control | [Request termination](policies/request-termination.md) | ✓ | — | — | Return a fixed response immediately without calling the upstream (maintenance mode, deprecated endpoints, kill switch) |
 | Transformation | [Upsert header](policies/upsert-header.md) | — | ✓ | ✓ | Set a header on the upstream request or the response |
 | Transformation | [Remove header](policies/remove-header-key-regex.md) | — | ✓ | ✓ | Strip headers whose name matches a regex pattern |
+| Observability | [Correlation ID](policies/correlation-id.md) | ✓ | ✓ | ✓† | Inject or preserve a correlation ID; propagate to upstream; optionally echo in response (†only when `echo-downstream=true`) |
 | Observability | [Timing header](policies/timing-header.md) | — | — | ✓ | Add upstream and total latency timing headers to the response |
 
 ## Route-level features
@@ -46,7 +47,7 @@ Flow has three attachment points. Each one controls a different scope:
 
 | Attachment | Block | Scope | Policies |
 |---|---|---|---|
-| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `upsert-header`, `remove-header-key-regex`, `timing-header` |
+| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `correlation-id`, `upsert-header`, `remove-header-key-regex`, `timing-header` |
 | `path-control` at route level | `route { path-control { … } }` | Requests matching that route only — service-level runs first | Same set as above |
 | Route-level block | `route { cache-response { … } }` | Requests matching that route only — outside `path-control` | `cache-response` |
 | `load-balance` on a connector | `connectors { load-balance { … } }` | Backend selection for all routes using that connector | `circuit-breaker`, `health-check` |
@@ -147,7 +148,11 @@ in, not by the filter itself.
 
 Note that some policies work in more than one phase. `upsert-header` and
 `remove-header-key-regex` each work in both `upstream-request` and `upstream-response` — the
-block you place them in decides whether they act on the request or the response.
+block you place them in decides whether they act on the request or the response. `correlation-id`
+spans all three phases: declare it in `request-filters` and it automatically runs in
+`upstream-request` (to propagate the ID) and, when `echo-downstream=true`, in `upstream-response`
+(to include the ID in the response). You do not declare it in the other phase blocks — one
+declaration covers all three.
 
 ## Filter syntax
 
