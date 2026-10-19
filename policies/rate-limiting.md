@@ -277,6 +277,69 @@ Available field names:
 
 ---
 
+## Per-client limits from JWT claims — `override-claims`
+
+Any multi-key variant (`client-id`, `source-ip`, `header:<name>`, `composite`, `uri`) can
+carry an optional `override-claims` block that lets the JWT token override individual
+token-bucket parameters per client.
+
+**When to use it:** enterprise or custom-contract customers where each client's burst
+allowance or sustained rate is individually negotiated and carried in their JWT.
+
+**Requirements:**
+- `token-auth` must appear **before** `rate-limit` in `request-filters`.
+- `expose-claims true` must be set on that `token-auth` filter — this is what makes
+  the JWT claims available to the rate limiter.
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+
+    filter kind="rate-limit" key-from="client-id" \
+        max-tokens=100 refill-qty=10 refill-interval-ms=1000 \
+        max-buckets=100000 threads=8 {
+        override-claims {
+            claim max-tokens-claim="rl_max_tokens" \
+                  refill-qty-claim="rl_refill_qty" \
+                  max-tokens-ceiling=50000 \
+                  refill-qty-ceiling=5000
+        }
+    }
+}
+```
+
+If a request's JWT carries `"rl_max_tokens": 8000`, that client gets a 8000-token bucket
+instead of the filter-level default of 100. A client whose JWT carries no `rl_max_tokens`
+claim gets the filter default.
+
+**Claim path formats:**
+
+| Value | Reads from |
+|---|---|
+| `"rl_max_tokens"` | top-level claim `jwt["rl_max_tokens"]` |
+| `"/limits/max_tokens"` | nested claim `jwt["limits"]["max_tokens"]` (JSON Pointer, RFC 6901) |
+
+**Ceiling enforcement:** `max-tokens-ceiling` and `refill-qty-ceiling` are hard limits set
+in config. A JWT claim value above the ceiling is silently clamped. Always set ceilings in
+production — without them a compromised token or auth server misconfiguration could grant
+unrestricted burst to a client.
+
+**Partial override:** each parameter is independent. A JWT carrying only `rl_max_tokens`
+changes the burst ceiling; `refill-qty` comes from the filter default. A JWT carrying
+neither gets both defaults.
+
+**`refill-interval-ms` is not JWT-controllable** — it is always taken from the filter
+config. This keeps ops in control of the timing tick; the JWT controls how large the bucket
+is and how fast it refills per tick.
+
+`uri-group` (shared single bucket) does not support `override-claims` — per-client
+parameter overrides require per-client buckets. Use `client-id` for per-user limits from
+JWT claims.
+
+---
+
 ## Missing key behavior
 
 Every `key-from` variant has a defined response when the key cannot be derived from the request:
@@ -367,9 +430,15 @@ filter kind="rate-limit" key-from="composite" \
 | `threads` | all multi-key variants | Bucket cache shard count — set to match `threads-per-service` |
 | `missing-key` | `header:<name>`, `composite` | What to do when the key field is absent: `"reject"` (default) or `"skip"` |
 | `missing-key-status` | `header:<name>`, `composite` | HTTP 4xx status code (400–499) returned when rejecting a missing key; default `400`. Only valid with `missing-key="reject"`. |
+| `override-claims { claim ... }` | all multi-key variants | JWT claim–driven per-client parameter overrides — see [Per-client limits from JWT claims](#per-client-limits-from-jwt-claims----override-claims) |
+| `max-tokens-claim` | inside `override-claims` | Claim path (flat or JSON Pointer) for `max-tokens` override |
+| `refill-qty-claim` | inside `override-claims` | Claim path (flat or JSON Pointer) for `refill-qty` override |
+| `max-tokens-ceiling` | inside `override-claims` | Hard ceiling on JWT-supplied `max-tokens` |
+| `refill-qty-ceiling` | inside `override-claims` | Hard ceiling on JWT-supplied `refill-qty` |
 
 `uri-group` uses one shared bucket — `max-buckets` and `threads` are not needed.
 `client-id` hardcodes `401` for a missing identity — `missing-key` and `missing-key-status` do not apply.
+`override-claims` on `uri-group` has no effect — use `client-id` for per-client JWT-driven limits.
 
 ### Multiple filters and stacking
 

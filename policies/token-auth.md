@@ -378,8 +378,19 @@ filter kind="token-auth" expose-claims=true { issuers { ... } }
 ```
 
 When `true`, the full raw claim set from the verified token is made available to downstream
-policies. Default `false` — opt-in only, because raw claims in the request context are a
-data-leakage surface if a downstream policy accidentally forwards them upstream.
+policies on the same route. Default `false` — opt-in only, because raw claims in the
+request context are a data-leakage surface if a downstream policy accidentally forwards
+them upstream.
+
+Required by any downstream policy that reads JWT claims directly — for example:
+
+- **Cache isolation by nested claim** — `identity-from "claim:<path>"` (see example above)
+- **Rate limiting by JWT claim** — `key-from "jwt-claim:<name>"` or `override-claims { ... }`
+  reads the tier or per-parameter limit values from the token
+
+When `expose-claims false` (the default), those policies see no claims and cannot resolve
+a tier or override — configure `expose-claims true` on the upstream `token-auth` filter
+whenever a downstream policy needs to read JWT claim values.
 
 ### `realm`
 
