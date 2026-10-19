@@ -11,6 +11,7 @@ scenarios — `key-from` selects what gets its own budget:
 | `"client-id"` | authenticated client | Per-user/per-tenant limiting (requires auth filter) |
 | `"header:<name>"` | value of a named header | Limit by tenant ID header or similar |
 | `"composite"` | combination of fields | Per-client-per-route or other multi-dimensional limits |
+| `"jwt-claim:<name>"` | authenticated client, with per-tier params | Subscription-tier limits — each tier gets its own params |
 
 **Phase:** `request-filters`
 
@@ -277,6 +278,71 @@ Available field names:
 
 ---
 
+## `key-from="jwt-claim:<name>"` — subscription tier limits
+
+**One bucket per authenticated client, with per-tier token-bucket parameters.** Each client's
+tier is read from their JWT by `<name>` — a top-level claim name or a JSON Pointer path
+(e.g. `"jwt-claim:/meta/tier"`). The bucket parameters come from the named tier in the
+`tiers { }` block, or fall through to filter-level defaults for clients whose tier is absent
+or unknown.
+
+**Requirements:**
+- `token-auth` must appear **before** `rate-limit` in `request-filters`.
+- `expose-claims true` must be set on that `token-auth` filter.
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+
+    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
+        max-buckets=100000 threads=8 {
+        tiers {
+            tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
+            tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
+            tier name="trial" max-tokens=10   refill-qty=1   refill-interval-ms=1000
+        }
+        missing-tier "reject"
+    }
+}
+```
+
+A client whose JWT carries `"sub_tier": "pro"` gets 1000-token buckets at 1000 req/s. A
+client with `"sub_tier": "trial"` gets 10 req/s. The bucket key includes both the client ID
+and the tier name, so a tier upgrade automatically creates a fresh bucket with the new limits.
+
+**Missing tier behavior** is controlled by `missing-tier`:
+
+| `missing-tier` | When the claim is absent or tier is unknown | Default? |
+|---|---|---|
+| `"reject"` | Reject with `400 Bad Request` | Yes |
+| `"skip"` | Pass through without rate limiting | — |
+
+Use `missing-tier-status=<401–499>` to change the rejection status code.
+
+**Combine with `override-claims`** to let enterprise customers override their tier's params:
+
+```kdl
+filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
+    max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
+    max-buckets=100000 threads=8 {
+    tiers {
+        tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
+        tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
+    }
+    override-claims {
+        claim max-tokens-claim="rl_max_tokens" max-tokens-ceiling=10000
+    }
+    missing-tier "reject"
+}
+```
+
+Precedence (highest to lowest): JWT override claim → tier map → filter-level defaults.
+
+---
+
 ## Per-client limits from JWT claims — `override-claims`
 
 Any multi-key variant (`client-id`, `source-ip`, `header:<name>`, `composite`, `uri`) can
@@ -314,12 +380,30 @@ If a request's JWT carries `"rl_max_tokens": 8000`, that client gets a 8000-toke
 instead of the filter-level default of 100. A client whose JWT carries no `rl_max_tokens`
 claim gets the filter default.
 
+**Nested claim paths (JSON Pointer)** — if the limit values live inside a nested object, use
+an RFC 6901 JSON Pointer starting with `/`:
+
+```kdl
+// JWT: { "entitlements": { "rate": { "max_tokens": 8000, "refill_qty": 800 } } }
+filter kind="rate-limit" key-from="client-id" \
+    max-tokens=100 refill-qty=10 refill-interval-ms=1000 \
+    max-buckets=100000 threads=8 {
+    override-claims {
+        claim max-tokens-claim="/entitlements/rate/max_tokens" \
+              refill-qty-claim="/entitlements/rate/refill_qty" \
+              max-tokens-ceiling=50000 \
+              refill-qty-ceiling=5000
+    }
+}
+```
+
 **Claim path formats:**
 
 | Value | Reads from |
 |---|---|
 | `"rl_max_tokens"` | top-level claim `jwt["rl_max_tokens"]` |
 | `"/limits/max_tokens"` | nested claim `jwt["limits"]["max_tokens"]` (JSON Pointer, RFC 6901) |
+| `"/entitlements/rate/max_tokens"` | deeply nested `jwt["entitlements"]["rate"]["max_tokens"]` |
 
 **Ceiling enforcement:** `max-tokens-ceiling` and `refill-qty-ceiling` are hard limits set
 in config. A JWT claim value above the ceiling is silently clamped. Always set ceilings in
@@ -352,6 +436,7 @@ Every `key-from` variant has a defined response when the key cannot be derived f
 | `client-id` | No authenticated identity on the request | **Reject `401 Unauthorized`** | No |
 | `header:<name>` | Named header is absent | **Reject `400 Bad Request`** (default) | Yes — `missing-key`, `missing-key-status` |
 | `composite` | Any component field is absent | **Reject `400 Bad Request`** (default) | Yes — `missing-key`, `missing-key-status` |
+| `jwt-claim:<name>` | Tier claim absent or tier name not in map | **Reject `400 Bad Request`** (default) | Yes — `missing-tier`, `missing-tier-status` |
 
 For `uri-group` and `uri`, "absent key" means the path didn't match `pattern` — the filter was
 never meant to govern that path, so pass-through is correct, not a failure.
@@ -422,14 +507,17 @@ filter kind="rate-limit" key-from="composite" \
 | Option | Applies to | Meaning |
 |---|---|---|
 | `key-from` | all | Dimension that identifies a bucket — see variants above |
-| `max-tokens` | all | Bucket size and initial fill — the burst allowance |
-| `refill-qty` | all | Tokens added per refill interval |
-| `refill-interval-ms` | all | Refill period in milliseconds |
+| `max-tokens` | all | Bucket size and initial fill — the burst allowance (filter-level default) |
+| `refill-qty` | all | Tokens added per refill interval (filter-level default) |
+| `refill-interval-ms` | all | Refill period in milliseconds (filter-level default) |
 | `pattern` | `uri-group`, `uri` | Regex — filter only applies to paths that match |
 | `max-buckets` | all multi-key variants | Maximum number of live buckets in memory |
 | `threads` | all multi-key variants | Bucket cache shard count — set to match `threads-per-service` |
 | `missing-key` | `header:<name>`, `composite` | What to do when the key field is absent: `"reject"` (default) or `"skip"` |
 | `missing-key-status` | `header:<name>`, `composite` | HTTP 4xx status code (400–499) returned when rejecting a missing key; default `400`. Only valid with `missing-key="reject"`. |
+| `tiers { tier name=... ... }` | `jwt-claim:<name>` | Named tier definitions — each `tier` row sets `max-tokens`, `refill-qty`, `refill-interval-ms` for one tier claim value |
+| `missing-tier` | `jwt-claim:<name>` | What to do when the JWT tier claim is absent or unknown: `"reject"` (default) or `"skip"` |
+| `missing-tier-status` | `jwt-claim:<name>` | HTTP 4xx status code for `missing-tier="reject"`; default `400` |
 | `override-claims { claim ... }` | all multi-key variants | JWT claim–driven per-client parameter overrides — see [Per-client limits from JWT claims](#per-client-limits-from-jwt-claims----override-claims) |
 | `max-tokens-claim` | inside `override-claims` | Claim path (flat or JSON Pointer) for `max-tokens` override |
 | `refill-qty-claim` | inside `override-claims` | Claim path (flat or JSON Pointer) for `refill-qty` override |
@@ -438,7 +526,7 @@ filter kind="rate-limit" key-from="composite" \
 
 `uri-group` uses one shared bucket — `max-buckets` and `threads` are not needed.
 `client-id` hardcodes `401` for a missing identity — `missing-key` and `missing-key-status` do not apply.
-`override-claims` on `uri-group` has no effect — use `client-id` for per-client JWT-driven limits.
+`override-claims` on `uri-group` has no effect — use `jwt-claim:` or `client-id` for per-client JWT-driven limits.
 
 ### Multiple filters and stacking
 

@@ -310,6 +310,31 @@ path-control {
 }
 ```
 
+**Rate limiting by subscription tier** — `key-from "jwt-claim:<name>"` reads a claim value
+and maps it to per-tier token-bucket parameters. Requires `expose-claims=true`:
+
+```kdl
+path-control {
+    request-filters {
+        filter kind="token-auth" expose-claims=true { issuers { ... } }
+        filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
+            max-tokens=10 refill-qty=1 refill-interval-ms=1000 \
+            max-buckets=100000 threads=8 {
+            tiers {
+                tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
+                tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
+                tier name="trial" max-tokens=10   refill-qty=1   refill-interval-ms=1000
+            }
+            missing-tier "reject"
+        }
+    }
+}
+```
+
+The bucket key is per-client-per-tier, so a tier upgrade automatically issues a fresh bucket
+at the new rate. See [rate-limiting](rate-limiting.md#key-fromjwt-claimname--subscription-tier-limits)
+for the full option reference including `missing-tier` and `override-claims`.
+
 **Cache isolation per user** — `identity-from "client-id"` reads `client_id`:
 
 ```kdl
