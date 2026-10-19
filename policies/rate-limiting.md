@@ -77,6 +77,16 @@ effective rate can spike above 6 req/s during fast network windows, causing inte
 even though the average rate looks fine. Adding a fixed delay (`sleep 0.2`) restores the
 controlled 5 req/s and eliminates the `429`s.
 
+### Three behaviors in one filter
+
+The token bucket produces three distinct behaviors that have their own names in API gateway literature:
+
+**Traffic throttle** — the sustained rate cap. Once the bucket is empty, only `refill-qty` requests pass per `refill-interval-ms`. This is the long-run ceiling: `refill-qty ÷ refill-interval-ms × 1000 req/s`.
+
+**Burst control** — the short-run headroom. A client with a full bucket can send up to `max-tokens` requests back-to-back before throttling begins. `max-tokens` sets how large a burst is allowed before the sustained rate takes over.
+
+**Immediate rejection** — when the bucket is empty, requests are rejected with `429` right away. Flow does not queue or delay requests. There is no minimum inter-request spacing enforced; requests either pass immediately or are rejected immediately. Some gateways call their bucket-empty behavior "spike arrest" and queue requests at a minimum rate — Flow does not do this. If you need queuing, it must happen at the client.
+
 ### Sizing your limits
 
 Set `max-tokens` to the burst you are willing to absorb — how many back-to-back requests a
