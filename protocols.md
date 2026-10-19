@@ -120,6 +120,7 @@ connectors {
 
 ## Next Steps
 
+- **Using WebSocket, gRPC, SSE, or GraphQL?** See [Non-REST Protocols](non-rest-protocols.md).
 - **Choosing a protocol?** See [Design Decisions](design-decisions.md) for scenarios and trade-offs.
 - **Configuring Flow?** See [Configuration Reference](configuration.md) for complete KDL syntax.
 - **Evaluating throughput?** See [Performance](performance.md) for detailed benchmarks and capacity planning.

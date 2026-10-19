@@ -31,6 +31,7 @@ Choose where to start based on what you need:
 | [Command line](cli.md) | Every flag, and how the CLI and config file interact |
 | [Routing](routing.md) | Matching requests to routes, and how ties are broken |
 | [Protocols](protocols.md) | HTTP/1.1, HTTP/2, h2c — technical details and performance |
+| [Non-REST Protocols](non-rest-protocols.md) | WebSocket, gRPC, SSE, GraphQL, JSON-RPC |
 | [Policies](policies.md) | Rate limiting, IP blocking, header rewriting, timing |
 | [Performance](performance.md) | Benchmarks, safe operating rates, and tuning |
 | [Operations](operations.md) | Running in production, zero-downtime upgrades, logging |

@@ -1,6 +1,6 @@
 # Features Not Yet Supported
 
-> **See also:** [Limitations Hub](limitations.md) • [Known Behaviors](known-behaviors.md) • [Architectural Constraints](architecture-constraints.md) • [What Flow Is Not](scope.md)
+> **See also:** [Limitations Hub](limitations.md) • [Known Behaviors](known-behaviors.md) • [Architectural Constraints](architecture-constraints.md) • [What Flow Is Not](scope.md) • [Non-REST Protocols](non-rest-protocols.md)
 
 The features on this page are not yet implemented in Flow but are under consideration. If you need one of these, consider workarounds or reach out to discuss roadmap priorities.
 
