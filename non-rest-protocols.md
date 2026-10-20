@@ -28,7 +28,9 @@ GraphQL is a query protocol over HTTP. Queries and mutations are HTTP POST reque
 ```kdl
 route {
   match { path-prefix "/graphql" }
-  upstream { ... }
+  connectors {
+    "graphql-backend.internal:4000"
+  }
 }
 ```
 
@@ -45,7 +47,9 @@ JSON-RPC calls are HTTP POST requests with a JSON body. Flow proxies them transp
 ```kdl
 route {
   match { path-prefix "/rpc" }
-  upstream { ... }
+  connectors {
+    "jsonrpc-backend.internal:8080"
+  }
 }
 ```
 
@@ -59,47 +63,71 @@ SSE is a one-directional streaming protocol over HTTP. The server sends a stream
 
 ### Configuration
 
-SSE routes require an extended downstream timeout. Flow's default downstream read timeout is 60 seconds — a client connection silent for more than 60 seconds is closed. For SSE this is too short: an idle event stream (no new events from the server for > 60 s) will be torn down.
+### Downstream timeout (HTTP/1.1 clients only)
 
-Set `disable-read-timeout true` on any route that carries SSE traffic:
+`downstream-read-timeout` only affects **HTTP/1.1 downstream connections**. Flow's default downstream read timeout is 60 seconds — an HTTP/1.1 client connection silent for more than 60 seconds is closed. For SSE over HTTP/1.1 this is too short: an idle event stream (no new events from the server for > 60 s) will be torn down.
+
+Set `downstream-read-timeout "None"` on any route that carries SSE traffic from HTTP/1.1 clients:
 
 ```kdl
 route {
   match { path-prefix "/events" }
-  disable-read-timeout true
-  upstream { ... }
+  downstream-read-timeout "None"
+  allowed-methods "GET"
+  allowed-protocols "http" "https"
+  connectors { ... }
 }
 ```
 
-> **Note**: `disable-read-timeout` removes the 60-second cap on the downstream connection. Apply it only to routes that carry long-lived streaming connections, not to general REST routes.
+> **Note**: `downstream-read-timeout "None"` removes the 60-second cap on the downstream connection. Apply it only to routes that carry long-lived streaming connections, not to general REST routes.
 
-On the upstream side, do not set `read-timeout-secs` on connectors serving SSE or other streaming backends — a per-read timeout will close the upstream connection when the stream is idle.
+If you want a generous-but-bounded timeout instead of fully unbounded, use a positive integer (seconds):
+
+```kdl
+downstream-read-timeout 3600    // 1-hour cap instead of unbounded
+```
+
+**HTTP/2 clients** (h2c or TLS) are unaffected by `downstream-read-timeout` — the 60-second timer does not exist on H2 downstream connections. If your SSE clients connect exclusively over HTTP/2, no timeout configuration is needed.
+
+### Downstream write timeout
+
+`downstream-write-timeout` caps how long Flow waits for a slow HTTP/1.1 client to accept a write. Pingora sets no write timeout by default — without this, a stalled client holds the connection open indefinitely. Like `downstream-read-timeout`, this is H1-only and a no-op on HTTP/2.
+
+For SSE routes, a write timeout is less critical than the read timeout (the server is pushing events; the client is mostly just reading). Set it if you want to reclaim connections from clients that stop consuming:
+
+```kdl
+route {
+  match { path-prefix "/events" }
+  downstream-read-timeout "None"
+  downstream-write-timeout 30     // drop clients that stall for > 30 s on a write
+  allowed-methods "GET"
+  allowed-protocols "http" "https"
+  connectors { ... }
+}
+```
+
+### Upstream timeout (applies to both H1 and H2)
+
+Do not set `read-timeout-secs` or `write-timeout-secs` on connectors serving SSE or other streaming backends. Unlike `downstream-read-timeout` and `downstream-write-timeout`, these connector timeouts apply per read/write operation on **both HTTP/1.1 and HTTP/2 upstream connections** — they will close the upstream connection whenever the stream is idle between events, regardless of protocol.
 
 ```kdl
 connectors {
-  upstream {
-    // read-timeout-secs omitted — never set this for streaming upstreams
-  }
+  // read-timeout-secs and write-timeout-secs omitted — never set these for streaming upstreams
   "events-backend.internal:8080"
 }
 ```
 
-For HTTP/2 upstreams, `h2-ping-interval-secs` keeps the connection alive without a read timeout:
+For HTTP/2 upstreams, `h2-ping-interval-secs` keeps the connection alive at the protocol level without needing a read timeout:
 
 ```kdl
 connectors {
-  upstream {
-    proto "h2-or-h1"
-    tls-sni "events-backend.example.com"
-    h2-ping-interval-secs 30
-  }
-  "events-backend.example.com:443"
+  "events-backend.example.com:443" tls-sni="events-backend.example.com" proto="h2-or-h1" h2-ping-interval-secs=30
 }
 ```
 
 ### SSE over HTTP/2
 
-SSE works over HTTP/2 — each event stream is a separate H2 stream on a shared connection. This is more efficient than HTTP/1.1 for high fan-out (many clients, one backend). Configure the upstream connector with HTTP/2 as you would for any other service.
+SSE works over HTTP/2 — each event stream is a separate H2 stream on a shared connection. This is more efficient than HTTP/1.1 for high fan-out (many clients, one backend). Configure the upstream connector with HTTP/2 as you would for any other service. Clients connecting over HTTP/2 require no `downstream-read-timeout` configuration.
 
 ---
 
@@ -124,34 +152,22 @@ route {
     path-prefix "/grpc.YourService"
     header "content-type" "application/grpc"
   }
-  upstream "grpc-backend"
-}
-
-upstreams {
-  upstream "grpc-backend" {
-    connectors {
-      upstream {
-        proto "h2-only"
-        allow-h2c true     // cleartext HTTP/2 to the backend
-      }
-      "grpc-backend.internal:50051"
-    }
+  allowed-methods "POST"
+  allowed-protocols "http" "h2"
+  connectors {
+    load-balance { selection "RoundRobin" }
+    "grpc-backend.internal:50051" proto="h2-only" allow-h2c=true
   }
 }
 ```
 
-The `offer-h2=true` flag on the listener enables h2c detection (HTTP/2 prior knowledge, no TLS). gRPC clients connect directly with HTTP/2 cleartext.
+The `offer-h2=true` attribute on the listener enables h2c detection (HTTP/2 prior knowledge, no TLS). gRPC clients connect directly with HTTP/2 cleartext.
 
 ### grpcs (TLS)
 
 ```kdl
 listeners {
-  "0.0.0.0:443" {
-    tls {
-      certificate-path "/etc/flow/certs/server.crt"
-      key-path "/etc/flow/certs/server.key"
-    }
-  }
+  "0.0.0.0:443" cert-path="/etc/flow/certs/server.crt" key-path="/etc/flow/certs/server.key" offer-h2=true
 }
 
 route {
@@ -159,18 +175,11 @@ route {
     path-prefix "/grpc.YourService"
     header "content-type" "application/grpc"
   }
-  upstream "grpcs-backend"
-}
-
-upstreams {
-  upstream "grpcs-backend" {
-    connectors {
-      upstream {
-        proto "h2-only"
-        tls-sni "grpcs-backend.internal"
-      }
-      "grpcs-backend.internal:50051"
-    }
+  allowed-methods "POST"
+  allowed-protocols "https" "h2"
+  connectors {
+    load-balance { selection "RoundRobin" }
+    "grpcs-backend.internal:50051" tls-sni="grpcs-backend.internal" proto="h2-only"
   }
 }
 ```
@@ -191,7 +200,11 @@ match { header "content-type" "application/grpc" }
 
 ### gRPC streaming
 
-gRPC's four stream patterns (unary, server-streaming, client-streaming, bidirectional) all run over HTTP/2 streams. Flow passes them through without modification. Do not set `read-timeout-secs` or `write-timeout-secs` on connectors serving streaming gRPC — those timeouts apply per read/write and will close streaming calls that pause mid-stream.
+gRPC's four stream patterns (unary, server-streaming, client-streaming, bidirectional) all run over HTTP/2 streams. Flow passes them through without modification.
+
+**No downstream timeout configuration needed.** `downstream-read-timeout` has no effect on HTTP/2 connections — Pingora's 60-second read timeout only applies to HTTP/1.1 downstream. gRPC clients always connect over H2 (h2c or TLS), so long-lived streaming RPCs are never closed by that timer.
+
+Do not set `read-timeout-secs` or `write-timeout-secs` on connectors serving streaming gRPC — those timeouts apply per read/write and will close streaming calls that pause mid-stream.
 
 ### Policies on gRPC
 
@@ -214,13 +227,15 @@ What this means in practice:
 
 ### Required timeout configuration
 
-The same downstream read timeout issue that affects SSE also affects WebSocket. Configure `disable-read-timeout true` on WebSocket routes:
+The same downstream read timeout issue that affects SSE also affects WebSocket. Configure `downstream-read-timeout "None"` on WebSocket routes:
 
 ```kdl
 route {
   match { path-prefix "/ws" }
-  disable-read-timeout true
-  upstream { ... }
+  downstream-read-timeout "None"
+  allowed-methods "GET"
+  allowed-protocols "http" "https"
+  connectors { ... }
 }
 ```
 

@@ -360,8 +360,10 @@ routes {
         allowed-protocols "http" "https" "h1" "h2"
 
         connectors { ... }
-        path-control { ... }       // optional, per-route
-        cache-response { ... }     // optional, per-route — see Cache response policy
+        path-control { ... }            // optional, per-route
+        cache-response { ... }          // optional, per-route — see Cache response policy
+        downstream-read-timeout "None"  // optional — "None" or positive integer (seconds)
+        downstream-write-timeout 30     // optional — positive integer (seconds)
     }
 }
 ```
@@ -397,6 +399,49 @@ allowed-protocols "h2"
 ```
 
 See [Routing](routing.md) for the `match` block and how competing routes are scored.
+
+### Downstream timeout reference
+
+Both downstream timeout fields are **H1-only** — they have no effect on HTTP/2 downstream connections.
+
+| Field | Default | H1 | H2 | Values |
+|---|---|---|---|---|
+| `downstream-read-timeout` | 60 s | ✅ | no-op | `"None"` (disable), positive integer (seconds) |
+| `downstream-write-timeout` | none | ✅ | no-op | positive integer (seconds) |
+
+### `downstream-read-timeout` (optional)
+
+Controls the downstream H1 read timeout for this route. Pingora's default is **60 seconds** — correct for normal REST routes but too short for long-lived streaming connections (SSE, WebSocket, MCP).
+
+| Value | Meaning |
+|---|---|
+| absent | Pingora default (60 s) |
+| `"None"` | Disabled — no read timeout; required for SSE, WebSocket, MCP |
+| positive integer | Explicit cap in seconds (e.g. `3600`) |
+
+```kdl
+downstream-read-timeout "None"   // SSE / WebSocket / MCP — unbounded
+downstream-read-timeout 3600     // generous-but-bounded (1 hour)
+```
+
+`0` is rejected. No-op on HTTP/2 downstream connections. See [Non-REST Protocols](non-rest-protocols.md)
+for full SSE and WebSocket configuration examples.
+
+### `downstream-write-timeout` (optional)
+
+Controls the downstream H1 write timeout for this route. Pingora sets **no write timeout by default** — a stalled client can hold the connection open indefinitely. Set a positive integer to cap how long Flow waits for the client to accept a write.
+
+| Value | Meaning |
+|---|---|
+| absent | No write timeout (Pingora default) |
+| positive integer | Explicit cap in seconds (e.g. `30`) |
+
+```kdl
+downstream-write-timeout 30    // drop clients that stall for > 30 s on a write
+```
+
+`0` is rejected. No-op on HTTP/2 downstream connections. See [Non-REST Protocols](non-rest-protocols.md)
+for streaming protocol configuration examples.
 
 ---
 
@@ -745,13 +790,15 @@ networks. See [Performance](performance.md).
 
 ### Tuning
 
-| Attribute | Default | Meaning |
-|---|---|---|
-| `max-h2-streams` | **100** | Concurrent HTTP/2 streams multiplexed over one upstream connection. |
-| `idle-timeout-secs` | — | How long an idle upstream connection is kept in the pool. |
-| `read-timeout-secs` | — | Max wait for upstream response data. |
-| `write-timeout-secs` | — | Max wait when sending to the upstream. |
-| `h2-ping-interval-secs` | — | HTTP/2 keepalive PING interval. The correct liveness check for long-lived HTTP/2 connections. |
+| Attribute | Default | H1 | H2 | Meaning |
+|---|---|---|---|---|
+| `max-h2-streams` | **100** | — | ✅ | Concurrent HTTP/2 streams per upstream connection. |
+| `idle-timeout-secs` | none | ✅ | ✅ | How long an idle upstream connection is kept in the pool. |
+| `read-timeout-secs` | none | ✅ | ✅ | Max wait per read from the upstream. **Never set on streaming backends** (SSE, gRPC, WebSocket) — fires on idle intervals, not total duration. |
+| `write-timeout-secs` | none | ✅ | ✅ | Max wait per write to the upstream. **Never set on streaming backends** for the same reason. |
+| `h2-ping-interval-secs` | none | — | ✅ | HTTP/2 keepalive PING interval. Use instead of `read-timeout-secs` on long-lived HTTP/2 connections. |
+
+`read-timeout-secs` and `write-timeout-secs` default to no timeout (unlimited wait). They apply to **both H1 and H2** upstream connections — unlike the downstream timeouts below, which are H1-only.
 
 **`max-h2-streams`** is the one worth understanding. It controls how many requests Flow can
 have in flight over a *single* upstream connection. Multiplexing is the main reason to use

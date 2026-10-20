@@ -24,6 +24,13 @@
 
 - **[DNS upstream discovery](configuration.md#dns-discovery)** — connector addresses can now be hostnames (`backend.internal:3000`) in addition to literal IP:port. Flow re-resolves them on a configurable interval (`dns-interval-secs`) so backends can be updated without a config change or restart. Requires a `system { dns-resolver { … } }` block or defaults to the system resolver.
 
+- **Per-route downstream timeouts** — two new per-route fields control downstream H1 connection behaviour (both no-ops on HTTP/2):
+  - `downstream-read-timeout` — overrides Pingora's 60-second downstream H1 read timeout. `"None"` disables it entirely (required for SSE, WebSocket, and MCP streaming routes); a positive integer sets an explicit cap.
+  - `downstream-write-timeout` — caps how long Flow waits for a slow HTTP/1.1 client to accept a write. Pingora sets no write timeout by default; set a positive integer to reclaim connections from stalled clients.
+  See [Non-REST Protocols](non-rest-protocols.md).
+
+- **[Rate limiting](policies/rate-limiting.md)** — unified `rate-limit` policy replacing three separate v0.1.0 policies. Configurable `key-from` dimension (`client-id`, `source-ip`, `uri`, `uri-group`, `header:<name>`, `composite`). Token-bucket algorithm: `max-tokens`, `refill-qty`, `refill-interval-ms`. Shared bucket capacity via `max-buckets` and `threads`. Missing-key behaviour is configurable per dimension. New in v0.2.0: **JWT claim–based rate limiting** — `key-from="jwt-claim:<name>"` derives the bucket key from a named JWT claim (requires `token-auth` with `expose-claims=true` on the same route). **Subscription tiers** — a `tiers { }` block maps claim values to per-tier token-bucket parameters; `missing-tier "reject"` (default) or `"skip"` controls unknown tiers. **Per-client limit overrides** — `override-claims { claim … }` reads `max-tokens` and `refill-qty` from JWT claims, with operator-enforced ceilings; flat claim names and JSON Pointer nested paths (e.g. `/entitlements/rate/max_tokens`) are both supported.
+
 - **[Token authentication](policies/token-auth.md)** — unified policy (`token-auth`) supporting
   two modes on the same route:
   - **JWT mode** (`mode "jwt"`): verifies signed tokens against a JWKS endpoint or a
