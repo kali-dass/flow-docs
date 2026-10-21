@@ -60,7 +60,7 @@ Choose where to start based on what you need:
 - **TLS** — terminate on clients, originate to upstreams, per-upstream CAs
 - **Token authentication** — [JWT (JWKS or static key, multi-issuer) or opaque token via RFC 7662 introspection](policies/token-auth.md)
 - **Traffic policies** — rate limiting (global/per-IP/per-path), IP blocking, header rewriting, timing headers
-- **DNS name resolution** — upstream connectors accept hostnames with background refresh
+- **DNS name resolution** — [upstream connectors accept hostnames with background refresh](dns.md)
 - **Zero-downtime upgrades** — graceful reload with connection handoff
 
 ## Planned Features

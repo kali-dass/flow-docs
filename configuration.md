@@ -565,7 +565,7 @@ connectors {
 }
 ```
 
-**System DNS resolver** — Flow uses `/etc/resolv.conf` by default (correct for Kubernetes, Docker, and bare-metal). To override, add a `dns-resolver` block to `system`:
+**System DNS resolver** — see [DNS Resolution](dns.md) for the full picture. Flow uses `/etc/resolv.conf` by default (correct for Kubernetes, Docker, and bare-metal). To override, add a `dns-resolver` block to `system`:
 
 ```kdl
 system {
@@ -585,9 +585,11 @@ system {
 |---|---|---|---|
 | `nameserver` | yes | *(system)* | DNS server to query, as `IP:port`. Replaces the system resolver entirely when set. Provide at least two for redundancy. |
 | `search-domain` | yes | *(system)* | Search domain appended when a bare hostname does not resolve. Equivalent to `search` in `/etc/resolv.conf`. |
-| `ndots` | no | 5 | Dots in a name below which search domains are tried first before a global lookup. Mirrors the `ndots` option in `/etc/resolv.conf`. |
-| `timeout-secs` | no | 5 | Per-query timeout in seconds before the resolver retries or fails. |
-| `attempts` | no | 2 | Number of retry attempts per DNS query before returning a failure. |
+| `ndots` | no | *(`resolv.conf`, else 1)* | Dots in a name below which search domains are tried first before a global lookup. Mirrors the `ndots` option in `/etc/resolv.conf`. Kubernetes clusters conventionally use `5`. |
+| `timeout-secs` | no | *(`resolv.conf`, else 5)* | Per-query timeout in seconds before the resolver retries or fails. |
+| `attempts` | no | *(`resolv.conf`, else 2)* | Number of retry attempts per DNS query before returning a failure. |
+
+`search-domain`, `ndots`, `timeout-secs`, and `attempts` apply with or without `nameserver`. Without `nameserver`, Flow starts from `/etc/resolv.conf` and overrides only the settings you specify. A `search-domain` list replaces the `search` list from `resolv.conf`.
 
 The connector-level `dns-interval-secs` attribute controls how often Flow re-resolves that specific hostname (default `30` seconds). Set it on the connector line, not in `dns-resolver`:
 
@@ -599,9 +601,9 @@ The connector-level `dns-interval-secs` attribute controls how often Flow re-res
 |---|---|---|
 | `dns-interval-secs` | `30` | Seconds between DNS re-resolution attempts for this hostname. Only applies to `discovery "Dns"` connectors; ignored on IP-address connectors. Lower values pick up DNS changes faster at the cost of more resolver queries. |
 
-**Startup behavior**: Flow resolves every DNS connector hostname at startup before opening any listener. If a hostname fails to resolve at startup, Flow logs an error and starts with an empty backend pool for that connector — requests to routes backed by that connector receive `502` until the next re-resolution succeeds. Flow does not refuse to start on a DNS failure; a transient resolver blip does not prevent the process from coming up.
+**Startup behavior**: Flow resolves every DNS connector hostname at startup before opening any listener. If a hostname fails to resolve at startup, Flow logs a warning and starts with an empty backend pool for that connector — requests to routes backed by that connector receive `502` until the next re-resolution succeeds. Flow does not refuse to start on a DNS failure; a transient resolver blip does not prevent the process from coming up.
 
-**Re-resolution**: background re-resolution runs on the `dns-interval-secs` timer. If a re-resolution query fails (NXDOMAIN, timeout), the existing pool is kept — the last known-good addresses continue serving traffic. Flow logs a warning on each failure. A successful re-resolution replaces the pool atomically.
+**Re-resolution**: background re-resolution runs on the `dns-interval-secs` timer. If a re-resolution fails with a transient error (timeout, SERVFAIL), the existing pool is kept — the last known-good addresses continue serving traffic. If the name returns no addresses (NXDOMAIN or an empty answer), the pool is kept for the first two consecutive occurrences and cleared on the third, after which routes return `502`. Flow logs a warning on each failure. A successful re-resolution replaces the pool atomically. See [DNS Resolution](dns.md#when-dns-fails).
 
 **Hostname format**: use `host:port`, not a bare hostname. Flow does not infer a default port from the scheme.
 
