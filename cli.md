@@ -57,7 +57,12 @@ flow --config-kdl /etc/flow/config.kdl --validate-configs
 ```
 
 This runs the entire config pipeline: KDL syntax, every route, every connector attribute,
-every filter. If it exits cleanly, the config is loadable.
+every filter, and that no two listeners share an address. If it exits cleanly, the config is
+loadable.
+
+Because it binds nothing, it cannot tell whether a listener's port is already in use or whether
+an address exists on the host. Flow checks that when it actually starts, and refuses to start
+(listing every listener it could not bind) if any fails.
 
 Use it:
 

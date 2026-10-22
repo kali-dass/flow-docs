@@ -54,6 +54,8 @@
 
 ### Config changes / migration
 
+- **Listener addresses must now be unique, and Flow refuses to start if one cannot be bound.** Two listeners that share an address (same port with the same IP, or either one a wildcard) are rejected when the config loads, naming both services. Previously both loaded, and the second service silently failed to start after about 30 seconds while Flow kept running. At startup Flow now also tries to bind every listener and exits with a list of failures (port in use, address not present on the host, missing privileges); this check is skipped for `--validate-configs` and `--upgrade`. See [Configuration Reference](configuration.md#listener-addresses-must-be-unique-and-bindable).
+
 - **Every route now requires a `name`, and names and services must be unique.** Add `name "..."` as the first line inside each `route { }`. A route name must be unique within its service (the same name may appear in different services), use lowercase letters, digits, `_`, `.` and `-`, start with a letter or digit, and be at most 63 characters; `unmatched` is reserved. Two services with the same name are also rejected now (previously both were loaded under the same name). Flow refuses to start on a missing, invalid or duplicate name and reports the line. See [Configuration Reference](configuration.md#name-required).
 
 - **`jwt-validate` is replaced by `token-auth`** — the `jwt-validate` policy kind is removed.

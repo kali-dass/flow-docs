@@ -249,6 +249,35 @@ listeners {
 
 Unix domain sockets are also supported.
 
+### Listener addresses must be unique and bindable
+
+- **No two listeners may share an address**, whether in one service or in different services.
+  Two TCP addresses clash when they have the same port and the same IP, or when either one is a
+  wildcard (`0.0.0.0` or `::`) on that port. A clash is rejected when the config loads, and the
+  error names both services and the line of the first listener:
+
+  ```
+  listener 127.0.0.1:8080 of service "B" conflicts with listener 127.0.0.1:8080 of service "A"
+  (line 4); two listeners cannot share an address
+  ```
+
+  The same port on different specific IP addresses (for example `127.0.0.1:8080` and
+  `10.0.0.1:8080`) does not clash.
+- **Every listener must be bindable when Flow starts.** Before starting, Flow tries to bind each
+  listener address. If any fails (the port
+  is in use, the IP address does not exist on the host, or the port needs privileges), Flow does not
+  start and lists every failure:
+
+  ```
+  cannot bind configured listeners:
+    service "A" cannot listen on 127.0.0.1:19403: Address already in use (os error 48)
+    service "B" cannot listen on 192.0.2.1:19405: Can't assign requested address (os error 49)
+  ```
+
+  `--validate-configs` checks the clash rule but does not bind anything, so it cannot detect a
+  busy port or a missing address. The startup bind check is skipped during a graceful `--upgrade`,
+  when the previous process still holds the ports.
+
 ### Offering HTTP/2
 
 `offer-h2=true` means **offer HTTP/2 to clients on this listener** — Flow works out how:
