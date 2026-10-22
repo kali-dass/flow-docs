@@ -22,7 +22,7 @@
 
 - **`X-Forwarded-For` outbound** — Flow now writes `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` on every upstream request. Incoming headers are stripped before injection when the TCP peer is not in `trusted-proxies`, preventing header chain spoofing.
 
-- **[DNS upstream discovery](configuration.md#dns-discovery)** — connector addresses can now be hostnames (`backend.internal:3000`) in addition to literal IP:port. Flow re-resolves them on a configurable interval (`dns-interval-secs`) so backends can be updated without a config change or restart. Requires a `system { dns-resolver { … } }` block or defaults to the system resolver.
+- **[DNS upstream discovery](configuration.md#dns-discovery)** — connector addresses can now be hostnames (`backend.internal:3000`) in addition to literal IP:port. Flow re-resolves them on a configurable interval (`dns-interval-secs`) so backends can be updated without a config change or restart. Requires a `system { dns-resolver { … } }` block or defaults to the system resolver. `system.dns-resolver` also accepts `ip-version` (`"ipv4"`/`"ipv6"`/`"dual"`) and `empty-answer-threshold`, and `search-domain`/`ndots`/`timeout-secs`/`attempts` apply with or without custom nameservers. Changes to a hostname's address set are logged. See [DNS Resolution](dns.md).
 
 - **Per-route downstream timeouts** — two new per-route fields control downstream H1 connection behaviour (both no-ops on HTTP/2):
   - `downstream-read-timeout` — overrides Pingora's 60-second downstream H1 read timeout. `"None"` disables it entirely (required for SSE, WebSocket, and MCP streaming routes); a positive integer sets an explicit cap.
