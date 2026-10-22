@@ -81,6 +81,7 @@ services {
 
 ```kdl
 route {
+    name "admin"
     match { path-prefix "/admin" }
     ...
     path-control {

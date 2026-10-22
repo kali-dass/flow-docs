@@ -179,9 +179,10 @@ Add it to any route to cache upstream responses in memory:
 
 ```kdl
 route {
+    name "api-catalog"
     match { path-prefix "/api/catalog" }
     allowed-methods "GET" "HEAD"
-    allowed-protocols "http" "https"
+    allowed-protocols "http" "https" "h1" "h2"
     connectors { "backend:3000" }
     cache-response {
         ttl-secs 60

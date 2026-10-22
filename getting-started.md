@@ -44,11 +44,12 @@ services {
 
         routes {
             route {
+                name "catch-all"
                 match {
                     path-prefix "/"
                 }
                 allowed-methods "GET" "POST"
-                allowed-protocols "http"
+                allowed-protocols "http" "h1"
 
                 connectors {
                     load-balance {
@@ -151,15 +152,17 @@ Routes are matched most-specific-first, so you can layer them:
 ```kdl
 routes {
     route {
+        name "api"
         match { path-prefix "/api" }
         allowed-methods "GET" "POST"
-        allowed-protocols "http"
+        allowed-protocols "http" "h1"
         connectors { "10.0.0.1:3000" }
     }
     route {
+        name "catch-all"
         match { path-prefix "/" }
         allowed-methods "GET"
-        allowed-protocols "http"
+        allowed-protocols "http" "h1"
         connectors { "10.0.0.9:8080" }
     }
 }
@@ -168,9 +171,11 @@ routes {
 Requests to `/api/users` hit the first route (longer prefix wins); everything else falls
 through to the second.
 
-> **Careful:** all routes must live inside a **single** `routes { }` block. If you write
-> two separate `routes { }` blocks, only the first is used and the rest are silently
-> ignored.
+> **Careful:** all routes must live inside a **single** `routes { }` block. Writing two
+> separate `routes { }` blocks is rejected when the config loads.
+
+Every route needs a `name` that is unique within its service (for example `name "api"`);
+see [the `name` setting](configuration.md#name-required).
 
 ## Where to go next
 

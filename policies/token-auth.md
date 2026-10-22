@@ -480,7 +480,7 @@ typically resolves in under 3 minutes instead of waiting up to 5.
 
 If Flow can't reach the JWKS endpoint, it keeps serving the last keys it successfully fetched —
 up to this many seconds past that last success. Past this window, Flow stops trusting those
-keys (see [Staleness → 503](#staleness--503)).
+keys (see [Staleness → 503](#staleness--503-jwt-mode)).
 
 ```kdl
 filter kind="token-auth" jwks-max-stale-secs=3600 { issuers { ... } }
@@ -775,9 +775,10 @@ services {
         listeners { "0.0.0.0:8080" }
         routes {
             route {
+                name "catch-all"
                 match { path-prefix "/" }
                 allowed-methods "GET"
-                allowed-protocols "http"
+                allowed-protocols "http" "h1"
                 connectors { "127.0.0.1:3000" }
                 path-control {
                     request-filters {

@@ -18,15 +18,15 @@
 
 - **[IP restriction](policies/ip-restriction.md)** — allow or block requests by source IP address. Supports allow-only mode, deny-only mode, and combined mode (deny wins). Configurable rejection status code and message. Accepts IPv4 and IPv6 CIDR ranges.
 
-- **Real client IP resolution** — `real-ip-source` and `trusted-proxies` fields under `system`. All IP-based policies now resolve the effective client IP from `X-Forwarded-For` (or a named header) when set, rather than always using the raw TCP peer address. A trusted-proxy list is required when using XFF — Flow refuses to start without one, preventing IP spoofing. See [Configuration Reference](configuration.md#real-ip-source).
+- **Real client IP resolution** — `real-ip-source` and `trusted-proxies` fields under `system`. All IP-based policies now resolve the effective client IP from `X-Forwarded-For` (or a named header) when set, rather than always using the raw TCP peer address. A trusted-proxy list is required when using XFF — Flow refuses to start without one, preventing IP spoofing. See [Configuration Reference](configuration.md#system-block).
 
 - **`X-Forwarded-For` outbound** — Flow now writes `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` on every upstream request. Incoming headers are stripped before injection when the TCP peer is not in `trusted-proxies`, preventing header chain spoofing.
 
-- **[DNS upstream discovery](configuration.md#dns-discovery)** — connector addresses can now be hostnames (`backend.internal:3000`) in addition to literal IP:port. Flow re-resolves them on a configurable interval (`dns-interval-secs`) so backends can be updated without a config change or restart. Requires a `system { dns-resolver { … } }` block or defaults to the system resolver. `system.dns-resolver` also accepts `ip-version` (`"ipv4"`/`"ipv6"`/`"dual"`) and `empty-answer-threshold`, and `search-domain`/`ndots`/`timeout-secs`/`attempts` apply with or without custom nameservers. Changes to a hostname's address set are logged. See [DNS Resolution](dns.md).
+- **[DNS upstream discovery](dns.md)** — connector addresses can now be hostnames (`backend.internal:3000`) in addition to literal IP:port. Flow re-resolves them on a configurable interval (`dns-interval-secs`) so backends can be updated without a config change or restart. Requires a `system { dns-resolver { … } }` block or defaults to the system resolver. `system.dns-resolver` also accepts `ip-version` (`"ipv4"`/`"ipv6"`/`"dual"`) and `empty-answer-threshold`, and `search-domain`/`ndots`/`timeout-secs`/`attempts` apply with or without custom nameservers. Changes to a hostname's address set are logged. See [DNS Resolution](dns.md).
 
 - **Per-route downstream timeouts** — two new per-route fields control downstream H1 connection behaviour (both no-ops on HTTP/2):
-  - `downstream-read-timeout` — overrides Pingora's 60-second downstream H1 read timeout. `"None"` disables it entirely (required for SSE, WebSocket, and MCP streaming routes); a positive integer sets an explicit cap.
-  - `downstream-write-timeout` — caps how long Flow waits for a slow HTTP/1.1 client to accept a write. Pingora sets no write timeout by default; set a positive integer to reclaim connections from stalled clients.
+  - `downstream-read-timeout` — overrides the 60-second default downstream HTTP/1.1 read timeout. `"None"` disables it entirely (required for SSE, WebSocket, and MCP streaming routes); a positive integer sets an explicit cap.
+  - `downstream-write-timeout` — caps how long Flow waits for a slow HTTP/1.1 client to accept a write. Flow applies no write timeout by default; set a positive integer to reclaim connections from stalled clients.
   See [Non-REST Protocols](non-rest-protocols.md).
 
 - **[Rate limiting](policies/rate-limiting.md)** — unified `rate-limit` policy replacing three separate v0.1.0 policies. Configurable `key-from` dimension (`client-id`, `source-ip`, `uri`, `uri-group`, `header:<name>`, `composite`). Token-bucket algorithm: `max-tokens`, `refill-qty`, `refill-interval-ms`. Shared bucket capacity via `max-buckets` and `threads`. Missing-key behaviour is configurable per dimension. New in v0.2.0: **JWT claim–based rate limiting** — `key-from="jwt-claim:<name>"` derives the bucket key from a named JWT claim (requires `token-auth` with `expose-claims=true` on the same route). **Subscription tiers** — a `tiers { }` block maps claim values to per-tier token-bucket parameters; `missing-tier "reject"` (default) or `"skip"` controls unknown tiers. **Per-client limit overrides** — `override-claims { claim … }` reads `max-tokens` and `refill-qty` from JWT claims, with operator-enforced ceilings; flat claim names and JSON Pointer nested paths (e.g. `/entitlements/rate/max_tokens`) are both supported.
@@ -48,9 +48,13 @@
 
 ### Fixes
 
+- **`path-prefix "/"` now matches every path.** It previously matched only the exact path `/`, so a route written as a catch-all served nothing else. More specific routes still take precedence. If a config had a `"/"` route alongside other routes, requests that matched no route (and got a `502`) now go to the `"/"` route's backend. A `path-prefix` ending in `/` (such as `"/api/"`), which could never match, is now accepted with the trailing slash removed and a startup warning.
+
 - **Wrong-phase filter error now names the correct phase.** Placing a policy in a block it does not support (e.g. `token-auth` in `upstream-response`) now produces `"filter 'token-auth' is not valid in upstream-response — place it in request-filters"` instead of the misleading `"Unknown upstream response filter: 'token-auth'"`.
 
 ### Config changes / migration
+
+- **Every route now requires a `name`, and names and services must be unique.** Add `name "..."` as the first line inside each `route { }`. A route name must be unique within its service (the same name may appear in different services), use lowercase letters, digits, `_`, `.` and `-`, start with a letter or digit, and be at most 63 characters; `unmatched` is reserved. Two services with the same name are also rejected now (previously both were loaded under the same name). Flow refuses to start on a missing, invalid or duplicate name and reports the line. See [Configuration Reference](configuration.md#name-required).
 
 - **`jwt-validate` is replaced by `token-auth`** — the `jwt-validate` policy kind is removed.
   Existing configs must change `filter kind="jwt-validate"` to `filter kind="token-auth"` and

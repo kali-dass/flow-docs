@@ -27,6 +27,7 @@ GraphQL is a query protocol over HTTP. Queries and mutations are HTTP POST reque
 
 ```kdl
 route {
+  name "graphql"
   match { path-prefix "/graphql" }
   connectors {
     "graphql-backend.internal:4000"
@@ -46,6 +47,7 @@ JSON-RPC calls are HTTP POST requests with a JSON body. Flow proxies them transp
 
 ```kdl
 route {
+  name "rpc"
   match { path-prefix "/rpc" }
   connectors {
     "jsonrpc-backend.internal:8080"
@@ -71,10 +73,11 @@ Set `downstream-read-timeout "None"` on any route that carries SSE traffic from 
 
 ```kdl
 route {
+  name "events"
   match { path-prefix "/events" }
   downstream-read-timeout "None"
   allowed-methods "GET"
-  allowed-protocols "http" "https"
+  allowed-protocols "http" "https" "h1" "h2"
   connectors { ... }
 }
 ```
@@ -91,17 +94,18 @@ downstream-read-timeout 3600    // 1-hour cap instead of unbounded
 
 ### Downstream write timeout
 
-`downstream-write-timeout` caps how long Flow waits for a slow HTTP/1.1 client to accept a write. Pingora sets no write timeout by default — without this, a stalled client holds the connection open indefinitely. Like `downstream-read-timeout`, this is H1-only and a no-op on HTTP/2.
+`downstream-write-timeout` caps how long Flow waits for a slow HTTP/1.1 client to accept a write. Flow applies no write timeout by default — without this, a stalled client holds the connection open indefinitely. Like `downstream-read-timeout`, this is H1-only and a no-op on HTTP/2.
 
 For SSE routes, a write timeout is less critical than the read timeout (the server is pushing events; the client is mostly just reading). Set it if you want to reclaim connections from clients that stop consuming:
 
 ```kdl
 route {
+  name "events"
   match { path-prefix "/events" }
   downstream-read-timeout "None"
   downstream-write-timeout 30     // drop clients that stall for > 30 s on a write
   allowed-methods "GET"
-  allowed-protocols "http" "https"
+  allowed-protocols "http" "https" "h1" "h2"
   connectors { ... }
 }
 ```
@@ -148,6 +152,7 @@ listeners {
 }
 
 route {
+  name "grpc-yourservice"
   match {
     path-prefix "/grpc.YourService"
     header "content-type" "application/grpc"
@@ -171,6 +176,7 @@ listeners {
 }
 
 route {
+  name "grpc-yourservice"
   match {
     path-prefix "/grpc.YourService"
     header "content-type" "application/grpc"
@@ -202,7 +208,7 @@ match { header "content-type" "application/grpc" }
 
 gRPC's four stream patterns (unary, server-streaming, client-streaming, bidirectional) all run over HTTP/2 streams. Flow passes them through without modification.
 
-**No downstream timeout configuration needed.** `downstream-read-timeout` has no effect on HTTP/2 connections — Pingora's 60-second read timeout only applies to HTTP/1.1 downstream. gRPC clients always connect over H2 (h2c or TLS), so long-lived streaming RPCs are never closed by that timer.
+**No downstream timeout configuration needed.** `downstream-read-timeout` has no effect on HTTP/2 connections — the 60-second read timeout only applies to HTTP/1.1 downstream connections. gRPC clients always connect over H2 (h2c or TLS), so long-lived streaming RPCs are never closed by that timer.
 
 Do not set `read-timeout-secs` or `write-timeout-secs` on connectors serving streaming gRPC — those timeouts apply per read/write and will close streaming calls that pause mid-stream.
 
@@ -216,7 +222,7 @@ Flow's policies (auth, rate limiting, header manipulation) apply to gRPC request
 
 WebSocket is a full-duplex protocol established by upgrading an HTTP/1.1 connection (`101 Switching Protocols`).
 
-**Current status**: Flow passes WebSocket upgrade requests through transparently. The underlying mechanism (Pingora's `UpgradedBody` path) handles the protocol switch. However, Flow has not been validated against real WebSocket traffic, and there is no dedicated WebSocket integration test yet.
+**Current status**: Flow passes WebSocket upgrade requests through transparently. The proxy's upgrade handling performs the protocol switch. However, Flow has not been validated against real WebSocket traffic, and there is no dedicated WebSocket integration test yet.
 
 What this means in practice:
 
@@ -231,10 +237,11 @@ The same downstream read timeout issue that affects SSE also affects WebSocket. 
 
 ```kdl
 route {
+  name "ws"
   match { path-prefix "/ws" }
   downstream-read-timeout "None"
   allowed-methods "GET"
-  allowed-protocols "http" "https"
+  allowed-protocols "http" "https" "h1" "h2"
   connectors { ... }
 }
 ```

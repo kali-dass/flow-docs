@@ -154,7 +154,7 @@ upstream {
 - Route based on headers, paths, SNI
 - Rate limit, IP block, apply policies
 
-**When you need transformation**: Request and response transformation is **planned for Flow** and coming soon. Today, Flow passes requests through unchanged — transformation will be built in as a native policy. See [API Gateway Roadmap](scope.md#api-gateway-roadmap).
+**When you need transformation**: Request and response transformation is **planned for Flow** and coming soon. Today, Flow passes requests through unchanged — transformation will be built in as a native policy. See [API Gateway Roadmap](scope.md#roadmap-four-gateway-phases).
 
 ---
 

@@ -518,7 +518,7 @@ filter kind="rate-limit" key-from="composite" \
 | `tiers { tier name=... ... }` | `jwt-claim:<name>` | Named tier definitions — each `tier` row sets `max-tokens`, `refill-qty`, `refill-interval-ms` for one tier claim value |
 | `missing-tier` | `jwt-claim:<name>` | What to do when the JWT tier claim is absent or unknown: `"reject"` (default) or `"skip"` |
 | `missing-tier-status` | `jwt-claim:<name>` | HTTP 4xx status code for `missing-tier="reject"`; default `400` |
-| `override-claims { claim ... }` | all multi-key variants | JWT claim–driven per-client parameter overrides — see [Per-client limits from JWT claims](#per-client-limits-from-jwt-claims----override-claims) |
+| `override-claims { claim ... }` | all multi-key variants | JWT claim–driven per-client parameter overrides — see [Per-client limits from JWT claims](#per-client-limits-from-jwt-claims--override-claims) |
 | `max-tokens-claim` | inside `override-claims` | Claim path (flat or JSON Pointer) for `max-tokens` override |
 | `refill-qty-claim` | inside `override-claims` | Claim path (flat or JSON Pointer) for `refill-qty` override |
 | `max-tokens-ceiling` | inside `override-claims` | Hard ceiling on JWT-supplied `max-tokens` |

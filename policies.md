@@ -69,6 +69,7 @@ services {
 
         routes {
             route {
+                name "api"
                 match { path-prefix "/api" }
                 ...
                 // Applies only to this route
@@ -90,6 +91,7 @@ to requests matching that route only and cannot be placed at the service level.
 
 ```kdl
 route {
+    name "api-v1"
     match { path-prefix "/api/v1" }
     upstream "backend"
     cache-response {
@@ -198,6 +200,7 @@ services {
 
         routes {
             route {
+                name "api"
                 match { path-prefix "/api" }
                 path-control {
                     request-filters {
@@ -281,6 +284,7 @@ service {
     }
     routes {
         route {
+            name "api-export"
             match { path-prefix "/api/export" }
             // Inner cap — tighter limit on this expensive route only
             path-control {

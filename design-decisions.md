@@ -216,10 +216,10 @@ Routes match incoming requests and select a backend. Matching is based on path, 
 
 ### Matching Strategies
 
-**Path Prefix** — match if request path starts with a prefix
+**Path Prefix** — match if the request path equals the prefix or continues past it at a `/` boundary (`/api/v1` matches `/api/v1/users` but not `/api/v12`)
 
 ```kdl
-match { path-prefix "/api/v1/" }
+match { path-prefix "/api/v1" }
 ```
 
 Simple, fast, works for most APIs.
@@ -264,7 +264,7 @@ Routes can combine matchers using AND and OR logic.
 
 ```kdl
 match { all {
-  path-prefix "/api/"
+  path-prefix "/api"
   header "X-Tenant" "acme"
 } }
 ```

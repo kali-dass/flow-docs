@@ -129,6 +129,7 @@ services {
 
 ```kdl
 route {
+    name "api-v1"
     match { path-prefix "/api/v1" }
     upstream "backend"
     path-control {

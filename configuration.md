@@ -50,11 +50,11 @@ the second occurrence.
 | `system.logging.app-log` | `level`, `output`, `log-dir` | — |
 | `system.logging.access-log` | *(reserved — content ignored)* | — |
 | `system.dns-resolver` | `ndots`, `timeout-secs`, `attempts`, `ip-version`, `empty-answer-threshold` | `nameserver`, `search-domain` |
-| `services` | — | named service blocks |
+| `services` | — | named service blocks (service names must be unique) |
 | A service | `listeners`, `routes`, `path-control`, `route-cache-dynamic-capacity`, `keepalive-timeout-secs` | — |
 | `listeners` | — | listener address lines |
-| `routes` | — | `route` blocks |
-| A route | `match`, `connectors`, `allowed-methods`, `allowed-protocols`, `path-control`, `cache-response` | — |
+| `routes` | — | `route` blocks (route names must be unique within the service) |
+| A route | `name`, `match`, `connectors`, `allowed-methods`, `allowed-protocols`, `path-control`, `cache-response`, `downstream-read-timeout`, `downstream-write-timeout` | — |
 | `match` | the matcher | sub-matchers inside `all` / `any` |
 | `connectors` | `load-balance` | backend address lines |
 | A connector | each attribute (`proto`, `tls-sni`, `max-h2-streams`, timeouts…) — each once | — |
@@ -346,12 +346,13 @@ tens of MB).
 
 ## Routes
 
-Each `route` has a `match` block, the methods and protocols it accepts, and the connectors
-it forwards to.
+Each `route` has a `name`, a `match` block, the methods and protocols it accepts, and the
+connectors it forwards to.
 
 ```kdl
 routes {
     route {
+        name "echo"                     // required, unique within the service
         match {
             path-prefix "/echo"
         }
@@ -372,6 +373,39 @@ routes {
 containing many `route` entries — not several `routes` blocks. Writing two is rejected at
 load (see [How many times can each item appear?](#how-many-times-can-each-item-appear)).
 
+### `name` (required)
+
+Every route must have a `name`. It identifies the route, and a missing or invalid name stops
+Flow from starting.
+
+```kdl
+route {
+    name "orders-read"
+    match { path-prefix "/orders" }
+    ...
+}
+```
+
+| Rule | Detail |
+|---|---|
+| Characters | Lowercase letters, digits, `_`, `.` and `-` |
+| First character | A lowercase letter or a digit |
+| Length | 1 to 63 characters |
+| Uniqueness | Unique **within its service**. Two routes in one service with the same name are rejected, and the error names the line of the first one. The same name may be used in different services. |
+| Reserved | `unmatched` |
+
+Service names must also be unique: two services with the same name are rejected at load.
+
+Example error:
+
+```
+route name "orders" is already used by another route in this service
+(first defined at line 8); route names must be unique within a service
+```
+
+Choose names that describe the route's purpose (`orders-read`, `checkout`, `static-assets`).
+Renaming a route later is a config change like any other.
+
 ### `allowed-methods` (required)
 
 Every route must list the HTTP methods it accepts. A request with a method that isn't
@@ -380,17 +414,27 @@ are case-insensitive; non-standard methods like `PURGE` work.
 
 ### `allowed-protocols` (required)
 
-Every route must list at least one of:
+Every route must list at least one of these. Each request falls into **exactly one** of them:
 
-| Value | Meaning |
+| Value | The request is… |
 |---|---|
-| `http` | Plain HTTP |
-| `https` | HTTP over TLS |
-| `h1` | HTTP/1.1 |
-| `h2` | HTTP/2 |
+| `h2` | HTTP/2, over TLS or in cleartext (h2c) |
+| `https` | HTTP/1.x over TLS |
+| `h1` | plain (cleartext) HTTP/1.1 |
+| `http` | plain (cleartext) HTTP other than 1.1, such as HTTP/1.0 |
 
-A request arriving on a protocol that isn't listed is rejected with **426 Upgrade Required**
-(plain HTTP where TLS is required) or **400** (wrong HTTP version).
+Because the values do not overlap, `http` alone does **not** admit ordinary plain HTTP/1.1
+requests; list `h1` for those.
+
+| To accept… | List |
+|---|---|
+| Plain HTTP/1.1 requests | `"h1"` |
+| HTTP/1.1 over TLS | `"https"` |
+| HTTP/2 (TLS or cleartext) | `"h2"` |
+| Every kind of request | `"http" "https" "h1" "h2"` |
+
+A request whose kind is not listed is rejected: with **426 Upgrade Required** when it arrived
+over plain HTTP and the route lists `https` or `h2` (TLS is the fix), otherwise with **400**.
 
 To accept TLS + HTTP/2 only, and reject TLS + HTTP/1.1:
 
@@ -411,11 +455,11 @@ Both downstream timeout fields are **H1-only** — they have no effect on HTTP/2
 
 ### `downstream-read-timeout` (optional)
 
-Controls the downstream H1 read timeout for this route. Pingora's default is **60 seconds** — correct for normal REST routes but too short for long-lived streaming connections (SSE, WebSocket, MCP).
+Controls the downstream H1 read timeout for this route. The default is **60 seconds** — correct for normal REST routes but too short for long-lived streaming connections (SSE, WebSocket, MCP).
 
 | Value | Meaning |
 |---|---|
-| absent | Pingora default (60 s) |
+| absent | Default (60 s) |
 | `"None"` | Disabled — no read timeout; required for SSE, WebSocket, MCP |
 | positive integer | Explicit cap in seconds (e.g. `3600`) |
 
@@ -429,11 +473,11 @@ for full SSE and WebSocket configuration examples.
 
 ### `downstream-write-timeout` (optional)
 
-Controls the downstream H1 write timeout for this route. Pingora sets **no write timeout by default** — a stalled client can hold the connection open indefinitely. Set a positive integer to cap how long Flow waits for the client to accept a write.
+Controls the downstream H1 write timeout for this route. There is **no write timeout by default** — a stalled client can hold the connection open indefinitely. Set a positive integer to cap how long Flow waits for the client to accept a write.
 
 | Value | Meaning |
 |---|---|
-| absent | No write timeout (Pingora default) |
+| absent | No write timeout (the default) |
 | positive integer | Explicit cap in seconds (e.g. `30`) |
 
 ```kdl

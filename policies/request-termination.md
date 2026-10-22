@@ -94,6 +94,7 @@ reload without removing or restructuring the route:
 
 ```kdl
 route {
+    name "api-payments"
     match { path-prefix "/api/payments" }
     upstream "payments-backend"
     path-control {
@@ -112,6 +113,7 @@ Return a fixed response for testing or stubbing an upstream that isn't ready:
 
 ```kdl
 route {
+    name "api-v2-orders"
     match { path-prefix "/api/v2/orders" }
     upstream "orders-backend"
     path-control {
@@ -161,6 +163,7 @@ services {
 
 ```kdl
 route {
+    name "api-v1-legacy"
     match { path-prefix "/api/v1/legacy" }
     upstream "backend"
     path-control {

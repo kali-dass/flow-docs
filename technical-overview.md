@@ -75,7 +75,8 @@ A **route** specifies how to match a request and where to send it.
 
 ```kdl
 route {
-  match { path-prefix "/api/" }
+  name "api"
+  match { path-prefix "/api" }
   connectors {
     "backend1.example.com:80"
     "backend2.example.com:80"

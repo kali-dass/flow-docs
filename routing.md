@@ -10,10 +10,11 @@ how Flow decides which route wins when several match.
 
 ## The `match` block
 
-Every route has a `match` block containing one matcher.
+Every route has a `name` (unique within its service) and a `match` block containing one matcher.
 
 ```kdl
 route {
+    name "api"
     match {
         path-prefix "/api"
     }
@@ -25,15 +26,57 @@ route {
 
 ### `path-prefix`
 
-Matches when the URI path starts with the given string.
+Matches when the request path is exactly the prefix, or continues past it at a `/` boundary.
 
 ```kdl
 match { path-prefix "/api/v2" }
 ```
 
-Matches `/api/v2`, `/api/v2/users`, `/api/v2/anything`. Does **not** match `/api/v21`
-only in the sense that a more specific route would win — as a raw prefix, `/api/v2` *does*
-match `/api/v21`. Use `path-regex` if you need a boundary.
+Matches `/api/v2`, `/api/v2/` and `/api/v2/users`. Does **not** match `/api/v21` or
+`/api/v2x`: the prefix has to end at a path segment, so `/health` never captures
+`/healthz`. Use `path-regex` if you need to match across that boundary.
+
+| Route prefix | Request path | Result |
+|---|---|---|
+| `/api/v2` | `/api/v2` | Match |
+| `/api/v2` | `/api/v2/` | Match |
+| `/api/v2` | `/api/v2/users` | Match |
+| `/api/v2` | `//api//v2//users` | Match (repeated slashes are collapsed first) |
+| `/api/v2` | `/api/v21` | Not matched (the prefix must end at a `/`) |
+| `/api/v2` | `/api/v2x` | Not matched |
+| `/api/v2` | `/api` | Not matched (shorter than the prefix) |
+| `/api/v2` | `/other` | Not matched |
+| `/api` | `/api` | Match |
+| `/api` | `/api/` | Match |
+| `/api` | `/api/users` | Match |
+| `/api` | `/apix` | Not matched |
+| `/api` | `/apix/users` | Not matched |
+| `/health` | `/health` | Match |
+| `/health` | `/healthz` | Not matched |
+| `/` | `/` | Match |
+| `/` | `/index.html` | Match |
+| `/` | `/x/y` | Match |
+
+Prefixes written with a trailing slash are corrected when the config loads:
+
+| Prefix in the config | Prefix Flow uses | Warning logged |
+|---|---|---|
+| `/api` | `/api` | No |
+| `/api/` | `/api` | Yes |
+| `/api/v1/` | `/api/v1` | Yes |
+| `/` | `/` | No |
+| `//` | `/` | Yes |
+
+Two more rules:
+
+- **`path-prefix "/"` matches every path.** It is the catch-all route. Because a longer prefix
+  scores higher, any more specific route still wins, and `"/"` only receives requests that no
+  other route matched.
+- **Write prefixes without a trailing slash.** Flow normalizes the request path before matching
+  (it collapses repeated slashes, resolves `.` and `..` segments and drops a trailing slash), so
+  a prefix ending in `/` could never match. Flow removes the trailing slash when it loads the
+  config (`"/api/"` is used as `"/api"`) and logs a warning with the config line; remove the
+  slash from the config to silence it.
 
 ### `path-regex`
 
@@ -154,7 +197,7 @@ after a route matches:
 - A request whose **method** isn't in `allowed-methods` **does not match the route at all**
   — Flow keeps looking, and returns **502** if nothing else matches.
 - A request whose **protocol** isn't in `allowed-protocols` is rejected with **426**
-  (plain HTTP where TLS is required) or **400** (wrong HTTP version).
+  (it arrived over plain HTTP and the route lists `https` or `h2`) or **400**.
 
 ## No match
 
@@ -297,7 +340,7 @@ curl -v http://localhost:8080/anything/test
 
 A protocol mismatch is **not** a routing miss. The route matched; the request was then
 rejected. You get **426** (TLS required) or **400** (wrong HTTP version) — not a 502. Add
-`"http"` and `"h1"` to `allowed-protocols` if the route should accept plain HTTP.
+`"h1"` (plain HTTP/1.1) and, if needed, `"http"` (other plain HTTP) to `allowed-protocols` if the route should accept plain HTTP.
 
 ---
 
