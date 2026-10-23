@@ -18,8 +18,8 @@ It takes no options.
 
 | Header | Meaning |
 |---|---|
-| `X-Upstream-Duration-Us` | Time spent on the upstream round-trip — how long your **backend** took |
-| `X-Flow-Duration-Us` | Flow's own overhead — how long **Flow** took |
+| `X-Upstream-Duration-Us` | Time until your backend's response headers arrived — mostly how long your **backend** took. It also includes any `upstream-request` policies, and the time a slow client takes to upload a request body that the backend waits for |
+| `X-Flow-Duration-Us` | Flow's own overhead — how long **Flow** took, not counting the time to connect to your backend. It includes time a policy spends waiting on an external service (for example token introspection) |
 
 Both are in **microseconds** (µs), not milliseconds. Flow's own overhead is routinely well
 under a millisecond, so milliseconds would round most of it away.
@@ -31,10 +31,16 @@ owns:
 
 - **`X-Upstream-Duration-Us` is large** → your backend is slow. Flow is waiting on it.
 - **`X-Flow-Duration-Us` is large** → the time is going into Flow's own work: routing,
-  policies, TLS.
+  policies, TLS, or a policy waiting on an external service.
 
 In a healthy setup `X-Flow-Duration-Us` is tens of microseconds and `X-Upstream-Duration-Us`
-dominates. If Flow's own number is large, look at how many policies the route runs and whether
+dominates.
+
+The two headers do not add up to the whole request. Two things are in neither number: the time
+to get a connection to your backend (reusing a pooled connection is fast, but opening a new
+TCP or TLS connection can take milliseconds), and the time to send the response to the client.
+If a request feels slower than the headers explain, a new backend connection on that request
+is the usual cause: check that connections are being reused. If Flow's own number is large, look at how many policies the route runs and whether
 TLS is enabled on both hops.
 
 ## Trying it out

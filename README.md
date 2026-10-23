@@ -60,6 +60,7 @@ Choose where to start based on what you need:
 - **TLS** — terminate on clients, originate to upstreams, per-upstream CAs
 - **Token authentication** — [JWT (JWKS or static key, multi-issuer) or opaque token via RFC 7662 introspection](policies/token-auth.md)
 - **Traffic policies** — rate limiting (global/per-IP/per-path), IP blocking, header rewriting, timing headers
+- **Prometheus metrics (preview)** — [request counts, latency split into upstream, connect and Flow overhead, in-flight requests, SSE/WebSocket streams, optional DNS and bandwidth series](metrics.md)
 - **DNS name resolution** — [upstream connectors accept hostnames with background refresh](dns.md)
 - **Zero-downtime upgrades** — graceful reload with connection handoff
 
@@ -74,7 +75,7 @@ See [What Flow Is](scope.md) for the full four-phase roadmap. Highlights by phas
 - Response caching (TTL-based, in-process)
 - Weighted/canary traffic splitting and circuit breaking
 - Per-user/per-tenant rate limiting and quota enforcement
-- Prometheus metrics endpoint, OpenTelemetry tracing, structured access logs
+- OpenTelemetry tracing, structured access logs (a Prometheus [metrics endpoint](metrics.md) is already available as a preview)
 
 **Phase 2 — LLM Gateway**: token rate limiting, guardrails, model routing, spend limits, AI response caching, provider fallover
 

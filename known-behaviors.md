@@ -169,13 +169,13 @@ upstream {
 
 **What's not logged**:
 - Per-request logs (structured JSON access logs are **planned**)
-- Per-request latencies as log records (available via `timing-header` filter or [planned metrics](operations.md#planned-comprehensive-logging--observability))
+- Per-request latencies as log records (per-request latency distributions are available as [metrics](metrics.md), or per response via the `timing-header` filter)
 - Request/response bodies
 - Full debug traces
 
 **Planned for future releases**:
 - **Access logs** — structured JSON logs (one per request), with sampling to avoid I/O overhead
-- **Metrics** — in-process histograms exposed on `/metrics` for Prometheus
+- **More metrics** — per-backend state and per-policy metrics (a [Prometheus endpoint](metrics.md) is available as a preview)
 - **Distributed tracing** — OpenTelemetry integration for end-to-end visibility
 - **Log masking** — automatic redaction of sensitive headers, tokens, and PII
 

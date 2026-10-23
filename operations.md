@@ -167,11 +167,12 @@ whether you want to expose internal timing to clients, not for performance. See
 Flow's current logging is basic — startup messages with a configurable level and output only. Comprehensive observability features are **planned for future releases**:
 
 - **Access logs** — structured JSON request/response logs (one per request), sampled or filtered to avoid overwhelming disk I/O
-- **Metrics** — in-process histograms (latency, throughput, errors) exposed on a `/metrics` endpoint for Prometheus scraping
+- **More metrics** — a Prometheus `/metrics` endpoint is available now as a preview (see [Metrics](metrics.md)); per-backend state, per-policy metrics, and TLS/authentication for the endpoint are planned
 - **Tracing** — OpenTelemetry integration for distributed tracing across Flow and backend services
 - **Log masking** — redaction of sensitive headers, tokens, and PII before logs reach disk
 
 Until then, rely on:
+- The [Prometheus metrics endpoint](metrics.md) for request counts, latency and in-flight requests
 - Response headers (via `timing-header` filter) for per-request latency
 - `--log-level debug` for startup diagnostics
 - External observability tools (load balancers, service mesh, APM agents) for fleet-wide visibility

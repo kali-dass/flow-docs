@@ -6,6 +6,8 @@
 
 ### New features
 
+- **[Prometheus metrics](metrics.md) (preview)** — add `system { metrics { listen "127.0.0.1:9090" } }` to expose `GET /metrics` on its own listener. Per-route request counts (`flow_requests_total`, with a `source` label that separates backend responses from responses Flow produced itself), latency histograms for the whole request, response headers, client transfer, backend round trip, backend connection setup and Flow's own overhead, an in-flight gauge, and a separate family for SSE and WebSocket streams (active streams, lifetime, bytes, how each ended). Optional `groups { dns true }` (per-hostname DNS resolution state) and `groups { bandwidth true }` (bytes in and out per route); `enabled false` turns the endpoint off while keeping the block. The endpoint has no authentication or TLS yet. See [Metrics](metrics.md).
+
 - **[Response caching](policies/cache-response.md)** — in-memory HTTP response cache per route. Add a `cache-response { }` block to any route. Serves cache hits without contacting the backend; injects `X-Cache-Status: HIT/MISS/BYPASS` on every cached-route response. Configurable TTL, body size limit, total capacity, cacheable status codes and methods, extra key headers. Supports `Vary` header-based variant tracking (up to 64 variants per URL). Per-identity key isolation via `identity-from` — scope the cache namespace to a specific authenticated user (`"client-id"`), tenant (`"tenant-id"`), request header (`"header:<name>"`), or JWT claim (`"claim:<path>"`, including nested claims via JSON Pointer). Absent identity → `BYPASS` with a one-time warning rather than a silent data leak. RFC compliance: `Cache-Control: only-if-cached` returns `504` on a MISS without contacting the upstream (RFC7234 §5.4); upstream `Age` is forwarded correctly so hits reflect total origin age, not just Flow's receipt time (RFC7234 §5.1); `cache-content-types` allowlist restricts storage to specific content-type prefixes (default: allow all).
 
 - **[Circuit breaking](configuration.md#circuit-breaking)** — passive per-backend failure detection on real request outcomes. Add `circuit-breaker { … }` inside any `load-balance` block. Three-state machine (`Closed` → `Open` → `HalfOpen`) with configurable error rate threshold, time window, cooldown period, and probe count. Two window strategies: `"SlidingWindow"` (exact, default) and `"TimeBuckets"` (fixed-memory, for high-traffic routes). Fail-open when all backends are tripped. Compatible with `health-check "Active"`.
@@ -47,6 +49,8 @@
   - `realm` controls the `WWW-Authenticate` challenge returned on `401`.
 
 ### Fixes
+
+- **`X-Flow-Duration-Us` no longer includes the time to connect to the backend.** Opening a new TCP/TLS connection to the backend used to be counted as Flow overhead, so the first request on a new connection could show a Flow time hundreds of times too high. The header now measures only Flow's own processing; values on requests that open a new backend connection drop, and requests on reused connections are unchanged. See [Timing headers](policies/timing-header.md).
 
 - **`path-prefix "/"` now matches every path.** It previously matched only the exact path `/`, so a route written as a catch-all served nothing else. More specific routes still take precedence. If a config had a `"/"` route alongside other routes, requests that matched no route (and got a `502`) now go to the `"/"` route's backend. A `path-prefix` ending in `/` (such as `"/api/"`), which could never match, is now accepted with the trailing slash removed and a startup warning.
 

@@ -46,7 +46,7 @@ header transformation — all from a single configuration file.
 | Circuit breaking on upstream errors | Planned — API Gateway Phase 1 |
 | Weighted / canary traffic splitting | Planned — API Gateway Phase 1 |
 | Active upstream health checking | Shipped |
-| Prometheus metrics endpoint | Planned — infra |
+| Prometheus metrics endpoint | Shipped (preview) — see [Metrics](metrics.md) |
 | Distributed tracing (OpenTelemetry) | Planned — infra |
 | Per-request access logging with external sinks | Planned — infra |
 | mTLS client certificates (upstream and downstream) | Planned — API Gateway Phase 1 |
@@ -255,7 +255,7 @@ transformations needed to operate a production API gateway:
 - API response cache (TTL-based, in-process, `Cache-Control` aware)
 
 **Observability**
-- Prometheus metrics endpoint (`/metrics`) — request counts, latency histograms, error rates
+- Prometheus metrics endpoint (`/metrics`) — request counts, latency histograms, error rates. **Preview shipped**, see [Metrics](metrics.md); per-backend state, per-policy metrics and endpoint TLS/auth to follow
 - Per-request access logging with external sinks (HTTP push, Kafka, OpenTelemetry OTLP)
 - OpenTelemetry distributed tracing (W3C `traceparent` propagation + OTLP span export)
 

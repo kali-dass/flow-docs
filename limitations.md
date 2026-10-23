@@ -64,7 +64,7 @@ For "Is Flow right for us?" — clarification on scope for evaluating whether Fl
 
 **Does Flow need a license to run?** Yes — every instance requires a valid license file, checked at startup before Flow opens any listener. See [Licensing](license.md).
 
-**What observability features does Flow have?** Currently: basic startup logging and response-header timing injection. **Planned for future releases**: structured access logs (JSON, per-request), Prometheus metrics endpoint, OpenTelemetry tracing, and log masking for PII/secrets. See [Operations](operations.md#planned-comprehensive-logging--observability).
+**What observability features does Flow have?** Currently: basic startup logging, response-header timing injection, and a Prometheus [metrics endpoint](metrics.md) (preview). **Planned for future releases**: structured access logs (JSON, per-request), more metrics (per-backend state, per-policy), OpenTelemetry tracing, and log masking for PII/secrets. See [Operations](operations.md#planned-comprehensive-logging--observability).
 
 ---
 

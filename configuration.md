@@ -49,6 +49,8 @@ the second occurrence.
 | `system.logging` | `app-log` | — |
 | `system.logging.app-log` | `level`, `output`, `log-dir` | — |
 | `system.logging.access-log` | *(reserved — content ignored)* | — |
+| `system.metrics` | `listen`, `enabled`, `groups` | — |
+| `system.metrics.groups` | `dns`, `bandwidth` | — |
 | `system.dns-resolver` | `ndots`, `timeout-secs`, `attempts`, `ip-version`, `empty-answer-threshold` | `nameserver`, `search-domain` |
 | `services` | — | named service blocks (service names must be unique) |
 | A service | `listeners`, `routes`, `path-control`, `route-cache-dynamic-capacity`, `keepalive-timeout-secs` | — |
@@ -101,6 +103,12 @@ system {
     // real-ip-source "xff"   // or "header:CF-Connecting-IP" etc.
 
     // dns-resolver { ... }   // see DNS discovery below
+
+    // Prometheus metrics endpoint (off unless this block is present).
+    // metrics {
+    //     listen "127.0.0.1:9090"
+    //     groups { dns true  bandwidth true }
+    // }
 }
 ```
 
@@ -111,6 +119,7 @@ system {
 | `pid-file` | Absolute path to the PID file used when daemonizing. |
 | `upgrade-socket` | Absolute path to the Unix socket used for zero-downtime upgrades. See [Operations](operations.md). |
 | `ca-file` | A CA bundle trusted for **all** outgoing upstream TLS connections. Use when every upstream shares one private CA. For per-upstream CAs, use `ca-cert-path` on the connector instead. |
+| `metrics` | A Prometheus metrics endpoint on its own `IP:port` listener (`listen`), with `enabled false` to switch it off and `groups { dns true  bandwidth true }` for optional series. Off unless the block is present. Plain HTTP with no authentication: bind it to loopback or a trusted network. See [Metrics](metrics.md). |
 | `real-ip-source` | How to resolve the effective client IP. `"peer"` (default), `"xff"` (X-Forwarded-For), or `"header:<name>"` (single named header). Requires `trusted-proxies` when not `"peer"`. See [Real client IP](#real-client-ip) below. |
 
 ### `logging.app-log`
@@ -201,6 +210,32 @@ every upstream request. This is always-on and requires no configuration.
 **Strip-before-append**: if the TCP peer is not in `trusted-proxies`, any incoming
 `X-Forwarded-*` headers are stripped before Flow appends its own values. This prevents a
 client from pre-populating the chain to spoof its source IP.
+
+---
+
+### `metrics`
+
+Prometheus endpoint. Off unless the block is present. Full reference, including every rule and error: [Metrics](metrics.md#turning-it-on).
+
+```kdl
+system {
+    metrics {
+        listen "127.0.0.1:9090"     // required: IP:port, not shared with any service listener
+        enabled true                // optional, default true; false = validated but nothing starts
+        groups {                    // optional; each group defaults to false
+            dns true                // flow_dns_* per-hostname DNS discovery series
+            bandwidth true          // flow_bandwidth_bytes_total per route
+        }
+    }
+}
+```
+
+| Key | Default | Values |
+|---|---|---|
+| `listen` | *(required)* | `"IP:port"`, IPv4 or IPv6, port not `0` |
+| `enabled` | `true` | `true` / `false` |
+| `groups.dns` | `false` | `true` / `false` |
+| `groups.bandwidth` | `false` | `true` / `false` |
 
 ---
 
