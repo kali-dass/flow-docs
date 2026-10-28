@@ -114,5 +114,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 |---|---|---|
 | Single configuration file with validation before start | Available | [CLI](cli.md) |
 | Zero-downtime upgrade | Available | [Operations](operations.md) |
+| Reload configuration without replacing the process | Planned | A configuration change needs a restart or an upgrade today. See [Configuration changes](behavior.md#configuration-changes). |
+| TLS certificate rotation without replacing the process | Planned | Listener certificates are read at startup. See [Configuration changes](behavior.md#configuration-changes). |
 | Configurable shutdown timeout that exits once connections drain | Planned | The grace period is fixed at 5 minutes today. See [Operations](operations.md#stopping-flow). |
 | Continuous license check while running | Planned | The license is verified at startup today. See [Licensing](license.md). |

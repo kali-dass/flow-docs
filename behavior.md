@@ -142,3 +142,21 @@ Flow verifies its license file once, at startup, before opening any listener. If
 A license that expires while Flow is running is not noticed until the next restart, and Flow keeps serving traffic normally in the meantime. See [Licensing](license.md) for where Flow looks for the file, the grace period, and common problems.
 
 > **Planned:** a continuous license check while running. See [Roadmap](roadmap.md#operations).
+
+## Configuration changes
+
+Flow reads its configuration file once, at startup. Editing the file does not change a running instance, and nothing watches it. The listener's TLS certificate and key are read at startup too, so when a certificate is renewed Flow keeps serving the old one until the process is replaced. After the old certificate expires, clients see handshake failures.
+
+To apply a change, validate it first, then replace the process:
+
+```bash
+flow --config-kdl /etc/flow/config.kdl --validate-configs
+```
+
+- **Restart.** The simplest option, and there is a gap while the new process starts.
+- **Zero-downtime upgrade.** Start the new process with `--upgrade` and signal the old one, as described in [Operations](operations.md#zero-downtime-upgrades). The new process re-reads the configuration and the certificates. This works on Linux only.
+- **In containers.** Roll the container instead: start a new one, move traffic to it, and retire the old one.
+
+Backend addresses that are DNS names are the exception: Flow re-resolves them in the background and updates the backend pool without a restart. See [DNS discovery](dns.md).
+
+> **Planned:** reloading configuration on a signal, and rotating TLS certificates, without replacing the process. See [Roadmap](roadmap.md#operations).
