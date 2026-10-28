@@ -314,7 +314,9 @@ services {
         routes {
             route {
                 name "echo"
-                match { path-prefix "/echo" }
+                match {
+                    path-prefix "/echo"
+                }
                 allowed-methods "GET"
                 allowed-protocols "https" "h2"
             }

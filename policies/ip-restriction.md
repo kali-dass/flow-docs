@@ -72,7 +72,9 @@ services {
                 filter kind="ip-restriction" deny="192.168.0.0/16, 10.0.0.0/8"
             }
         }
-        routes { ... }
+        routes {
+            ...
+        }
     }
 }
 ```
@@ -82,7 +84,9 @@ services {
 ```kdl
 route {
     name "admin"
-    match { path-prefix "/admin" }
+    match {
+        path-prefix "/admin"
+    }
     ...
     path-control {
         request-filters {

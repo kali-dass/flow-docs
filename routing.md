@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Policies](policies.md) • [Performance](performance.md)
 
 Flow picks exactly one route per request. This page covers the matchers you can write and
@@ -29,7 +29,9 @@ route {
 Matches when the request path is exactly the prefix, or continues past it at a `/` boundary.
 
 ```kdl
-match { path-prefix "/api/v2" }
+match {
+    path-prefix "/api/v2"
+}
 ```
 
 Matches `/api/v2`, `/api/v2/` and `/api/v2/users`. Does **not** match `/api/v21` or
@@ -83,7 +85,9 @@ Two more rules:
 Matches when the URI path satisfies a regular expression.
 
 ```kdl
-match { path-regex "^/static/.*\\.(js|css|png|svg)$" }
+match {
+    path-regex "^/static/.*\\.(js|css|png|svg)$"
+}
 ```
 
 ### `header`
@@ -103,7 +107,9 @@ Useful for multi-tenant routing and API versioning.
 Exact match on the TLS SNI (or the `Host` header on plain HTTP), with the port stripped.
 
 ```kdl
-match { sni "payments.example.com" }
+match {
+    sni "payments.example.com"
+}
 ```
 
 ### `sni-suffix`
@@ -111,10 +117,14 @@ match { sni "payments.example.com" }
 Suffix match on the SNI / `Host`.
 
 ```kdl
-match { sni-suffix ".internal.example.com" }
+match {
+    sni-suffix ".internal.example.com"
+}
 ```
 
 Matches `payments.internal.example.com`, `auth.internal.example.com`, and so on.
+
+SNI matching supports exact and suffix patterns only; there is no regex form. For anything more complex, match on the `Host` header with the `header` matcher, split the patterns across routes, or run separate Flow instances for different SNI groups.
 
 ### Implicit AND — multiple matchers in one `match` block
 

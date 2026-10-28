@@ -66,7 +66,9 @@ With this config, a request carrying `traceparent` passes through Flow to the up
 
 **Limitation:** this is header passthrough only. Flow does not generate valid W3C trace context values, create spans, or record trace data. A request without `traceparent` gets a plain UUID injected under that header — not a valid trace context.
 
-Full OTel integration (span creation, `traceparent` generation, `tracestate` propagation, trace export) is a separate planned policy. When that ships, the correlation-id passthrough approach here becomes unnecessary for OTel stacks — use the OTel policy instead.
+Full OTel integration (span creation, `traceparent` generation, `tracestate` propagation, trace export) is a separate capability, and it would make the correlation-id passthrough approach here unnecessary for OTel stacks.
+
+> **Planned:** OpenTelemetry tracing. See [Roadmap](../roadmap.md#observability).
 
 ## Scenario: Azure API Management or enterprise middleware
 
@@ -120,7 +122,9 @@ services {
                 filter kind="correlation-id"
             }
         }
-        routes { ... }
+        routes {
+            ...
+        }
     }
 }
 ```
@@ -130,7 +134,9 @@ services {
 ```kdl
 route {
     name "api-v1"
-    match { path-prefix "/api/v1" }
+    match {
+        path-prefix "/api/v1"
+    }
     upstream "backend"
     path-control {
         request-filters {

@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
 
 Flow has three kinds of policy attachment:
@@ -70,7 +70,9 @@ services {
         routes {
             route {
                 name "api"
-                match { path-prefix "/api" }
+                match {
+                    path-prefix "/api"
+                }
                 ...
                 // Applies only to this route
                 path-control {
@@ -92,7 +94,9 @@ to requests matching that route only and cannot be placed at the service level.
 ```kdl
 route {
     name "api-v1"
-    match { path-prefix "/api/v1" }
+    match {
+        path-prefix "/api/v1"
+    }
     upstream "backend"
     cache-response {
         ttl-secs 60
@@ -201,7 +205,9 @@ services {
         routes {
             route {
                 name "api"
-                match { path-prefix "/api" }
+                match {
+                    path-prefix "/api"
+                }
                 path-control {
                     request-filters {
                         filter kind="token-auth" {
@@ -285,7 +291,9 @@ service {
     routes {
         route {
             name "api-export"
-            match { path-prefix "/api/export" }
+            match {
+                path-prefix "/api/export"
+            }
             // Inner cap — tighter limit on this expensive route only
             path-control {
                 request-filters {

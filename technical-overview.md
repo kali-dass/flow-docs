@@ -2,12 +2,12 @@
 
 > **New here?** Start with [Getting Started](getting-started.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
 
 ## What is Flow?
 
-Flow is a high-performance API and AI Gateway written in Rust, evolving from an advanced reverse proxy foundation. Today, it terminates client connections, routes traffic based on HTTP paths, headers, or TLS SNI, proxies requests to upstream backends with HTTP/1.1 and HTTP/2 support (with optional TLS), and verifies [tokens](policies/token-auth.md) (JWT or opaque, via RFC 7662 introspection) before routing — all driven by a single KDL configuration file. Flow is evolving through **four planned phases**: API Gateway (Phase 1 — transformation, caching, circuit breaking, CORS, further auth methods, Prometheus/OTel observability), LLM Gateway (Phase 2), MCP Gateway (Phase 3), and A2A Gateway (Phase 4). See [What Flow Is](scope.md) for the full roadmap.
+Flow is a high-performance reverse proxy written in Rust, growing into a gateway for APIs, LLMs, MCP servers, and AI agents. Today, it terminates client connections, routes traffic based on HTTP paths, headers, or TLS SNI, proxies requests to upstream backends with HTTP/1.1 and HTTP/2 support (with optional TLS), and verifies [tokens](policies/token-auth.md) (JWT or opaque, via RFC 7662 introspection) before routing — all driven by a single KDL configuration file. Flow is growing into an API gateway, an LLM gateway with a model catalog, an MCP gateway with an MCP server registry, an agent-to-agent (A2A) gateway with an agent registry, and a skills registry. See the [Roadmap](roadmap.md) for what is available and what is planned.
 
 ## How It Works
 
@@ -49,8 +49,12 @@ A **service** is a single reverse proxy instance that runs within Flow. Each ser
 ```kdl
 services {
   MyGateway {
-    listeners { "0.0.0.0:8080" }
-    routes { /* routes here */ }
+    listeners {
+        "0.0.0.0:8080"
+    }
+    routes {
+        /* routes here */
+    }
   }
 }
 ```
@@ -76,7 +80,9 @@ A **route** specifies how to match a request and where to send it.
 ```kdl
 route {
   name "api"
-  match { path-prefix "/api" }
+  match {
+      path-prefix "/api"
+  }
   connectors {
     "backend1.example.com:80"
     "backend2.example.com:80"
@@ -95,7 +101,9 @@ A **connector** is an upstream backend server. When a route matches, Flow picks 
 
 ```kdl
 connectors {
-  load-balance { selection "RoundRobin" }
+  load-balance {
+      selection "RoundRobin"
+  }
   "backend1.example.com:80"
   "backend2.example.com:80"
 }
@@ -112,7 +120,9 @@ When a route has multiple connectors, Flow picks one using the **load balancing 
 - **Consistent hashing**: Hash request properties (IP, path) to always route to the same backend
 
 ```kdl
-load-balance { selection "RoundRobin" }
+load-balance {
+    selection "RoundRobin"
+}
 ```
 
 ### Policies
@@ -194,4 +204,4 @@ HTTP/2 multiplexing (multiple streams per connection) is powerful but TLS handsh
 - **Available policies?** See [Policies](policies.md) for all filter types
 - **Performance and tuning?** See [Performance](performance.md) for benchmarks and capacity planning
 - **Production deployment?** See [Operations](operations.md) for zero-downtime upgrades, logging, and monitoring
-- **Understanding constraints?** See [Limitations](limitations.md) for what Flow can't do yet and known behaviors
+- **Know what to expect?** See [How Flow Behaves](behavior.md) for failure responses and known behaviors, and the [Roadmap](roadmap.md) for what is planned

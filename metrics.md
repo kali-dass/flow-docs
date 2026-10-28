@@ -34,7 +34,9 @@ system {
 ### Rules
 
 - **File only.** There is no command-line flag or environment variable for metrics; the `metrics` block is the only way to configure it. It lives under `system`, appears once, and each key inside it appears once.
-- **One endpoint for the whole process.** Metrics for every service and route are served from the one `listen` address and told apart by the `service` and `route` labels. When metrics are enabled, every route is recorded; there is no per-route or per-service switch (switches for individual policies are planned).
+- **One endpoint for the whole process.** Metrics for every service and route are served from the one `listen` address and told apart by the `service` and `route` labels. When metrics are enabled, every route is recorded; there is no per-route or per-service switch.
+
+> **Planned:** metrics switches for individual policies. See [Roadmap](roadmap.md#observability).
 - **`listen` must be an IP address and port,** IPv4 or IPv6 (`"127.0.0.1:9090"`, `"[::1]:9090"`, `"0.0.0.0:9090"`). Hostnames, Unix sockets and port `0` are rejected, and so are TLS settings for now.
 - **`listen` must not clash with any service listener.** The same rule as for service listeners applies: two TCP addresses clash when they have the same port and the same IP, or when either one is a wildcard (`0.0.0.0` or `::`) on that port. So `127.0.0.1:9090` and `10.0.0.1:9090` can coexist, but `0.0.0.0:9090` clashes with a service listening on `127.0.0.1:9090`. The check also applies when `enabled` is `false`.
 - **`groups` takes only the names `dns` and `bandwidth`,** each set to `true` or `false`. An empty `groups { }` block is allowed and turns nothing on. An unknown group, a non-boolean value, or the same group or block twice is rejected.
@@ -66,7 +68,7 @@ The metrics listener speaks **plain HTTP with no authentication**. Anyone who ca
 
 The listener serves `GET /metrics` only. Any other path returns `404` and any other method on `/metrics` returns `405` with `Allow: GET`. Responses are gzip-compressed when the scraper sends `Accept-Encoding: gzip`, which Prometheus does by default. The endpoint runs on its own listener and thread, so scrapes never compete with proxy traffic for worker threads.
 
-Optional TLS and authentication for this listener are planned; see [Not yet available](#not-yet-available).
+> **Planned:** TLS and authentication for this listener. See [Roadmap](roadmap.md#observability).
 
 ---
 
@@ -313,13 +315,11 @@ flow_dns_resolved_addresses == 0
 
 ---
 
-## Not yet available
+## What the endpoint does not expose
 
-These are planned and are **not** exposed today:
+These are not exposed today:
 
 - Per-backend state (healthy, unhealthy, circuit open) and circuit-breaker state as metrics.
 - Per-policy metrics (calls, outcomes and duration for individual policies, enabled per policy instance), and cache hit/miss counters.
-- TLS and authentication on the metrics listener.
-- A ready-made Grafana dashboard and alert rules.
 
-See [What Flow Is](scope.md) for the roadmap.
+> **Planned:** per-backend and per-policy metrics, and TLS and authentication for the endpoint. See [Roadmap](roadmap.md#observability).

@@ -1,7 +1,7 @@
 # Design Decisions
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
 
 Making architectural decisions for your Flow setup? This guide helps you choose the right combination of protocols, load balancing, policies, and routing based on your requirements.
@@ -53,9 +53,9 @@ Choose based on your network topology and performance requirements.
 
 See [Performance](performance.md) for detailed numbers. Quick summary:
 
-- **Encryption cost**: ~−29% throughput (TLS vs cleartext)
-- **Multiplexing benefit**: ~+51% throughput (HTTP/2 vs HTTP/1.1)
-- **Full end-to-end multiplexing** (h2c both hops) delivers the most throughput
+- **Encryption** costs throughput: cleartext is faster than TLS
+- **Multiplexing** adds throughput: HTTP/2 is faster than HTTP/1.1
+- **Full end-to-end multiplexing** (h2c on both hops) delivers the most throughput
 
 More details in [Protocols](protocols.md).
 
@@ -79,15 +79,15 @@ Choose based on your backend topology and traffic pattern.
 - **Sticky sessions**: No
 - **Configuration**: `selection "Random"`
 
-### Consistent Hashing (FVN or Ketama)
+### Consistent Hashing (FNV or Ketama)
 
 - **How it works**: Hash request properties (usually source IP or URI path) to consistently route to the same backend
 - **Best for**: Sticky sessions, cache locality, or when backend state matters (session affinity)
 - **Which hash function**: 
-  - **FVN** (FowlerNollVo): General purpose, faster
+  - **FNV** (Fowler–Noll–Vo): General purpose, faster
   - **Ketama**: Used by memcached, if you're already using Ketama elsewhere
 - **What gets hashed**: Configurable via `RequestSelector` (source IP + path, path only, etc.). The "source IP" is the resolved client IP — configure `real-ip-source` in `system` for correct hashing behind a proxy or CDN. See [Configuration](configuration.md#real-client-ip).
-- **Configuration**: `selection "FVNHash"` or `selection "KetamaHashing"`, choose selector
+- **Configuration**: `selection "FNV"` or `selection "Ketama"`, choose selector
 
 ### Considerations
 
@@ -102,33 +102,8 @@ See [Configuration Reference](configuration.md) for syntax.
 
 Flow has two complementary mechanisms. They catch different failure modes and work best together.
 
-### Active health checking (available today)
-
-Flow sends periodic synthetic probe requests (`GET /healthz` by default) to each backend on a background timer, independent of real traffic.
-
-- **Catches**: backends that are completely down, backends that stopped accepting connections, backends that were never healthy to begin with
-- **Does not catch**: backends that accept connections and pass `/healthz` but fail real requests (overloaded, partially broken application state)
-- **Recovery**: automatic — a backend is restored to the pool after `healthy-threshold` consecutive probe successes
-- **Configuration**: `health-check "Active"` in the `load-balance` block
-
-```kdl
-load-balance {
-    selection "RoundRobin"
-    health-check "Active"
-    health-check-path "/healthz"
-    unhealthy-threshold 3
-    healthy-threshold 2
-}
-```
-
-### Circuit breaking
-
-Flow observes real request outcomes (HTTP 5xx responses) on the live traffic path and trips a per-backend circuit after a configurable error rate is exceeded in a sliding window.
-
-- **Catches**: backends that are alive and pass health probes but are failing real requests — overloaded backends, partial failures, degraded app state
-- **Does not catch**: backends that go down before any real traffic hits them (active health checking handles that)
-- **Recovery**: after a cooldown period, Flow allows a small number of probe requests through (half-open state); success closes the circuit, failure re-opens it
-- **Configuration**: `circuit-breaker { … }` block inside `load-balance` — see [Configuration](configuration.md#circuit-breaking)
+- **Active health checking** sends periodic probes to each backend, independent of real traffic. It catches backends that are down or unreachable. See [Health checking](policies/health-checking.md).
+- **Circuit breaking** watches real request outcomes and trips a per-backend circuit when the error rate passes a threshold. It catches backends that are alive and pass probes but fail real requests. See [Circuit breaker](policies/circuit-breaker.md).
 
 ### Which to use
 
@@ -139,162 +114,39 @@ Flow observes real request outcomes (HTTP 5xx responses) on the live traffic pat
 | Both | Both together — they cover complementary failure modes |
 | No session state, orchestrator handles health | Neither — let Kubernetes remove pods from DNS |
 
-**Fail-open**: both mechanisms use fail-open when all backends are affected — Flow routes requests anyway rather than serving 502 to every client. This avoids a misconfigured probe or threshold taking a service offline entirely.
+**Fail-open**: both mechanisms use fail-open when all backends are affected. Flow routes requests anyway rather than serving 502 to every client, so a misconfigured probe or threshold cannot take a service offline.
 
 ---
 
 ## Which Policies Should I Use?
 
-Policies are filters that run on requests (rate limiting, IP blocking) or responses (header rewriting, timing injection). Apply them per-route.
+Policies are filters that run on requests (rate limiting, IP restriction, authentication) or responses (header rewriting, timing injection). Apply them per route or per service. See [Policies](policies.md) for where each attaches and in what order they run.
 
-### Rate Limiting
-
-Prevent traffic spikes and enforce fair use.
-
-**Types**:
-1. **Global rate limit** — one shared bucket for all requests to a route
-2. **Per-source-IP rate limit** — separate bucket per client IP
-3. **Per-URI-path rate limit** — separate bucket per request path
-
-**Example scenario**:
-- `rate-limit key-from="uri-group" max-tokens=100` → max 100 req/sec to this route (shared bucket)
-- `rate-limit key-from="source-ip" max-tokens=50` → max 50 req/sec per unique client IP
-
-See [Rate Limiting Policy](policies/rate-limiting.md) for detailed configuration.
-
-### IP Blocking (CIDR Ranges)
-
-Block traffic from specific IP ranges.
-
-**Example**: Block all requests from `192.168.1.0/24`
-
-```kdl
-path-control {
-  ip-restriction {
-    ranges "192.168.1.0/24" "10.0.0.0/8"
-  }
-}
-```
-
-See [IP restriction Policy](policies/ip-restriction.md).
-
-### Header Rewriting
-
-Add, remove, or modify headers in requests or responses.
-
-**Example**: Add `X-Api-Gateway: Flow` to upstream requests
-
-```kdl
-path-control {
-    upstream-request {
-        filter kind="upsert-header" key="X-Api-Gateway" value="Flow"
-    }
-}
-```
-
-See [Upsert Header Policy](policies/upsert-header.md) and [Remove Header Policy](policies/remove-header-key-regex.md).
-
-### Timing Headers
-
-Inject request/response latency measurements (diagnostic).
-
-```kdl
-upstream-response {
-  timing-header {}
-}
-```
-
-Adds `X-Upstream-Duration-Us` and `X-Flow-Duration-Us` headers with microsecond-precision timings.
-
-See [Timing Header Policy](policies/timing-header.md).
+| You want to | Use |
+|---|---|
+| Verify a bearer, cookie, or query token | [Token authentication](policies/token-auth.md) |
+| Cap request rates, or enforce fair use per client | [Rate limiting](policies/rate-limiting.md) |
+| Allow or block source IP ranges | [IP restriction](policies/ip-restriction.md) |
+| Add or change a header | [Upsert header](policies/upsert-header.md) |
+| Strip headers by name | [Remove header](policies/remove-header-key-regex.md) |
+| Trace a request across services | [Correlation ID](policies/correlation-id.md) |
+| See latency per response | [Timing header](policies/timing-header.md) |
+| Answer immediately without calling the backend (maintenance, kill switch) | [Request termination](policies/request-termination.md) |
+| Serve repeated requests from memory | [Cache response](policies/cache-response.md) |
 
 ---
 
 ## How Should I Structure My Routes?
 
-Routes match incoming requests and select a backend. Matching is based on path, headers, or SNI. Flow scores all matches and picks the most specific one.
+Routes match incoming requests and select a backend. Matching is based on path, headers, or SNI, and Flow picks the most specific match. See [Routing](routing.md) for the matchers, how to combine them with `all` and `any`, and the scoring rules.
 
-### Matching Strategies
-
-**Path Prefix** — match if the request path equals the prefix or continues past it at a `/` boundary (`/api/v1` matches `/api/v1/users` but not `/api/v12`)
-
-```kdl
-match { path-prefix "/api/v1" }
-```
-
-Simple, fast, works for most APIs.
-
-**Path Regex** — match if request path matches a regex
-
-```kdl
-match { path-regex "^/users/[0-9]+$" }
-```
-
-More expressive, slightly slower.
-
-**Header** — match if request header equals a value
-
-```kdl
-match { header "X-API-Key" "secret123" }
-```
-
-Useful for tenant routing, feature flags, internal routing.
-
-**SNI (Server Name Indication)** — match if TLS SNI matches a value
-
-```kdl
-match { sni "api.example.com" }
-```
-
-Virtual hosting at the TLS layer.
-
-**SNI Suffix** — match if SNI ends with a suffix
-
-```kdl
-match { sni-suffix ".internal.example.com" }
-```
-
-Wildcard SNI matching.
-
-### Combining Matches (AND, OR)
-
-Routes can combine matchers using AND and OR logic.
-
-**AND** — all matchers must match
-
-```kdl
-match { all {
-  path-prefix "/api"
-  header "X-Tenant" "acme"
-} }
-```
-
-**OR** — any matcher can match
-
-```kdl
-match { any {
-  sni "v1.api.example.com"
-  sni "v2.api.example.com"
-} }
-```
-
-### Scoring and Specificity
-
-More specific routes win. Flow scores each match and picks the highest score:
-
-- Longer prefix wins
-- Regex match scored by length of matched text
-- SNI exact match scores highest (very specific)
-- Header match adds a fixed bonus
-
-See [Routing](routing.md) for detailed scoring rules.
-
-### Recommendations
-
-- **Simple APIs**: Use path prefix matching
-- **Multi-tenant**: Add header matching (e.g., tenant ID)
-- **Virtual hosting**: Use SNI matching
-- **Complex routing**: Combine with AND/OR logic, let scoring handle precedence
+| Situation | Match on |
+|---|---|
+| Simple APIs | `path-prefix` |
+| Pattern-based paths | `path-regex` |
+| Multi-tenant | `header` (for example a tenant ID), usually together with a path |
+| Virtual hosting | `sni` or `sni-suffix` |
+| Complex routing | `all` and `any` combinations; let scoring settle precedence |
 
 ---
 
@@ -363,12 +215,12 @@ Flow has architectural constraints and known behaviors worth understanding when 
 ### Architectural Constraints
 
 - **HTTP/2 stream limit**: Default 100 concurrent streams per connection (tunable via `max-h2-streams`)
-- **Header size**: ~1 MB per connection (not currently tunable in Flow)
+- **Header size**: ~1 MB per connection (not currently tunable in Flow; see [How Flow Behaves](behavior.md#header-size))
 - **CPU-bound**: Single core per service thread saturates at a rate depending on protocol/TLS
 - **Memory**: Grows with concurrent connections (~40 MB typical)
 - **Regex in SNI**: Not supported — only exact match and suffix match
 
-See [Architectural Constraints](architecture-constraints.md) for details and workarounds.
+See [Performance](performance.md) for CPU and memory, [How Flow Behaves](behavior.md#http2-stream-concurrency) for stream limits, and [Routing](routing.md) for SNI matching.
 
 ### Known Behaviors
 
@@ -376,23 +228,10 @@ See [Architectural Constraints](architecture-constraints.md) for details and wor
 - **h2-only backend negotiates HTTP/1.1**: Returns 502 (strict protocol enforcement)
 - **Rate limiting scope**: Per-Flow instance, not shared across multiple Flow processes
 
-See [Known Behaviors](known-behaviors.md) for more.
+See [How Flow Behaves](behavior.md) and [Protocols](protocols.md#strict-http2-h2-only) for more.
 
-### Limitations
+### Roadmap
 
-Some features are not yet supported:
-- WebSocket proxying
-- gRPC (implemented but not validated)
-
-See [Not Yet Supported](not-yet-supported.md).
+For what is available and what is planned, including WebSocket and gRPC status, see the [Roadmap](roadmap.md).
 
 ---
-
-## Future Decision Topics
-
-We plan to add guidance on:
-- Health checking strategy
-- Caching strategy (if implemented)
-- Logging strategy
-- Request/response buffering
-- Graceful shutdown and upgrades

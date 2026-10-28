@@ -25,6 +25,8 @@ connectors {
 
 All fields are optional. Omitting a field uses its default.
 
+The block lives inside `load-balance` and not in `path-control` because it works at the backend selection layer. Policies in `path-control` run after a route is matched but before a backend is chosen, so they do not know which backend will serve the request. Circuit breaking tracks the outcome per backend and gates later requests to that specific backend, which is why it sits beside `selection` and `health-check`.
+
 ## Options
 
 | Field | Default | Description |
@@ -89,6 +91,12 @@ circuit-breaker {
     window-secs 60
 }
 ```
+
+## Tuning
+
+- If the circuit trips too easily, raise `error-threshold-pct` or `min-requests`, or lengthen `window-secs` so brief spikes average out.
+- If recovery is too slow, reduce `cooldown-secs`. Raise `probe-requests` for more confidence before the circuit closes.
+- Combine it with active health checking, as described next.
 
 ## Combining with active health checking
 

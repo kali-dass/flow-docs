@@ -72,11 +72,10 @@ configure; it's part of the license itself.
 - **After expiration + grace period, at startup:** Flow refuses to start, same as any other
   invalid license.
 
-> **Current limitation.** Today, Flow only checks the license **at startup**. If a license
-> expires *while Flow is already running*, Flow keeps serving traffic until the next
-> restart — it does not notice mid-run. A continuous runtime check (so an expired license
-> stops accepting *new* requests without waiting for a restart, while letting in-flight
-> requests finish normally) is planned but not yet implemented.
+Flow checks the license **at startup**. If a license expires *while Flow is already running*,
+Flow keeps serving traffic until the next restart; it does not notice mid-run.
+
+> **Planned:** a continuous license check while running. See [Roadmap](roadmap.md#operations).
 
 ## Common problems
 

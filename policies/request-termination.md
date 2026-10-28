@@ -95,7 +95,9 @@ reload without removing or restructuring the route:
 ```kdl
 route {
     name "api-payments"
-    match { path-prefix "/api/payments" }
+    match {
+        path-prefix "/api/payments"
+    }
     upstream "payments-backend"
     path-control {
         request-filters {
@@ -114,7 +116,9 @@ Return a fixed response for testing or stubbing an upstream that isn't ready:
 ```kdl
 route {
     name "api-v2-orders"
-    match { path-prefix "/api/v2/orders" }
+    match {
+        path-prefix "/api/v2/orders"
+    }
     upstream "orders-backend"
     path-control {
         request-filters {
@@ -139,8 +143,10 @@ route {
 
 ## Distinction from `redirect`
 
-`redirect` (planned) returns a `3xx` with a `Location` header telling the client to go elsewhere.
+A redirect returns a `3xx` with a `Location` header telling the client to go elsewhere.
 `request-termination` ends the request here with any status and body — the client is not sent anywhere.
+
+> **Planned:** a `redirect` policy. See [Roadmap](../roadmap.md#traffic-control).
 
 ## Where to attach it
 
@@ -154,7 +160,9 @@ services {
                 filter kind="request-termination" status=503 message="Down for maintenance"
             }
         }
-        routes { ... }
+        routes {
+            ...
+        }
     }
 }
 ```
@@ -164,7 +172,9 @@ services {
 ```kdl
 route {
     name "api-v1-legacy"
-    match { path-prefix "/api/v1/legacy" }
+    match {
+        path-prefix "/api/v1/legacy"
+    }
     upstream "backend"
     path-control {
         request-filters {

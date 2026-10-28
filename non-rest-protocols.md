@@ -14,8 +14,8 @@ This page covers Flow's support for protocols and traffic patterns beyond plain 
 | JSON-RPC | ✅ Works | Plain HTTP POST — no special config |
 | Server-Sent Events (SSE) | ✅ Works | Requires per-route timeout config — see below |
 | gRPC (cleartext h2c) | ✅ Works | Requires h2c config |
-| gRPCS (TLS) | ✅ Works | Same as any HTTPS + HTTP/2 upstream |
-| WebSocket | ⚠️ Passes through | Transparent, not validated — see below |
+| gRPCS (TLS) | See Roadmap | Configured like any HTTPS + HTTP/2 upstream. See [Roadmap](roadmap.md#protocols) |
+| WebSocket | ⚠️ Passes through | Transparent; see below and the [Roadmap](roadmap.md#protocols) |
 
 ---
 
@@ -28,7 +28,9 @@ GraphQL is a query protocol over HTTP. Queries and mutations are HTTP POST reque
 ```kdl
 route {
   name "graphql"
-  match { path-prefix "/graphql" }
+  match {
+      path-prefix "/graphql"
+  }
   connectors {
     "graphql-backend.internal:4000"
   }
@@ -48,7 +50,9 @@ JSON-RPC calls are HTTP POST requests with a JSON body. Flow proxies them transp
 ```kdl
 route {
   name "rpc"
-  match { path-prefix "/rpc" }
+  match {
+      path-prefix "/rpc"
+  }
   connectors {
     "jsonrpc-backend.internal:8080"
   }
@@ -74,11 +78,15 @@ Set `downstream-read-timeout "None"` on any route that carries SSE traffic from 
 ```kdl
 route {
   name "events"
-  match { path-prefix "/events" }
+  match {
+      path-prefix "/events"
+  }
   downstream-read-timeout "None"
   allowed-methods "GET"
   allowed-protocols "http" "https" "h1" "h2"
-  connectors { ... }
+  connectors {
+      ...
+  }
 }
 ```
 
@@ -101,12 +109,16 @@ For SSE routes, a write timeout is less critical than the read timeout (the serv
 ```kdl
 route {
   name "events"
-  match { path-prefix "/events" }
+  match {
+      path-prefix "/events"
+  }
   downstream-read-timeout "None"
   downstream-write-timeout 30     // drop clients that stall for > 30 s on a write
   allowed-methods "GET"
   allowed-protocols "http" "https" "h1" "h2"
-  connectors { ... }
+  connectors {
+      ...
+  }
 }
 ```
 
@@ -141,8 +153,8 @@ gRPC runs over HTTP/2. Flow can proxy both gRPC variants:
 
 | Variant | Transport | Config |
 |---|---|---|
-| `grpc` | HTTP/2 cleartext (h2c) | `proto "h2-only"` + `allow-h2c true` |
-| `grpcs` | HTTP/2 over TLS | `proto "h2-only"` + `tls-sni` |
+| `grpc` | HTTP/2 cleartext (h2c) | `proto="h2-only"` + `allow-h2c=true` |
+| `grpcs` | HTTP/2 over TLS | `proto="h2-only"` + `tls-sni` |
 
 ### grpc (cleartext)
 
@@ -160,7 +172,9 @@ route {
   allowed-methods "POST"
   allowed-protocols "http" "h2"
   connectors {
-    load-balance { selection "RoundRobin" }
+    load-balance {
+        selection "RoundRobin"
+    }
     "grpc-backend.internal:50051" proto="h2-only" allow-h2c=true
   }
 }
@@ -169,6 +183,8 @@ route {
 The `offer-h2=true` attribute on the listener enables h2c detection (HTTP/2 prior knowledge, no TLS). gRPC clients connect directly with HTTP/2 cleartext.
 
 ### grpcs (TLS)
+
+> **Planned:** validation of gRPC over TLS. See [Roadmap](roadmap.md#protocols). Test this configuration in your environment before relying on it.
 
 ```kdl
 listeners {
@@ -184,7 +200,9 @@ route {
   allowed-methods "POST"
   allowed-protocols "https" "h2"
   connectors {
-    load-balance { selection "RoundRobin" }
+    load-balance {
+        selection "RoundRobin"
+    }
     "grpcs-backend.internal:50051" tls-sni="grpcs-backend.internal" proto="h2-only"
   }
 }
@@ -198,10 +216,14 @@ gRPC uses `POST` with `content-type: application/grpc`. Route by path prefix (th
 
 ```kdl
 // Route by service path
-match { path-prefix "/com.example.UserService" }
+match {
+    path-prefix "/com.example.UserService"
+}
 
 // Route all gRPC to one backend
-match { header "content-type" "application/grpc" }
+match {
+    header "content-type" "application/grpc"
+}
 ```
 
 ### gRPC streaming
@@ -211,6 +233,36 @@ gRPC's four stream patterns (unary, server-streaming, client-streaming, bidirect
 **No downstream timeout configuration needed.** `downstream-read-timeout` has no effect on HTTP/2 connections — the 60-second read timeout only applies to HTTP/1.1 downstream connections. gRPC clients always connect over H2 (h2c or TLS), so long-lived streaming RPCs are never closed by that timer.
 
 Do not set `read-timeout-secs` or `write-timeout-secs` on connectors serving streaming gRPC — those timeouts apply per read/write and will close streaming calls that pause mid-stream.
+
+Timeouts belong to the connector, so when one service mixes call types, give each method its own route. A route that serves only unary calls can set `read-timeout-secs` to catch a hung backend, while the routes for streaming methods leave it unset and use `h2-ping-interval-secs` to detect a dead connection:
+
+```kdl
+route {
+    name "orders-get"
+    match {
+        path-prefix "/shop.Orders/GetOrder"
+    }
+    allowed-methods "POST"
+    allowed-protocols "h2"
+    connectors {
+        "[::1]:50051" proto="h2-only" allow-h2c=true read-timeout-secs=10 write-timeout-secs=10
+    }
+}
+
+route {
+    name "orders-watch"
+    match {
+        path-prefix "/shop.Orders/WatchOrders"
+    }
+    allowed-methods "POST"
+    allowed-protocols "h2"
+    connectors {
+        "[::1]:50051" proto="h2-only" allow-h2c=true h2-ping-interval-secs=30
+    }
+}
+```
+
+The routes share one connection to the backend, and each keeps its own timeouts.
 
 ### Policies on gRPC
 
@@ -222,7 +274,9 @@ Flow's policies (auth, rate limiting, header manipulation) apply to gRPC request
 
 WebSocket is a full-duplex protocol established by upgrading an HTTP/1.1 connection (`101 Switching Protocols`).
 
-**Current status**: Flow passes WebSocket upgrade requests through transparently. The proxy's upgrade handling performs the protocol switch. However, Flow has not been validated against real WebSocket traffic, and there is no dedicated WebSocket integration test yet.
+Flow passes WebSocket upgrade requests through transparently. The proxy's upgrade handling performs the protocol switch.
+
+> **Preview:** WebSocket passthrough. See [Roadmap](roadmap.md#protocols).
 
 What this means in practice:
 
@@ -238,11 +292,15 @@ The same downstream read timeout issue that affects SSE also affects WebSocket. 
 ```kdl
 route {
   name "ws"
-  match { path-prefix "/ws" }
+  match {
+      path-prefix "/ws"
+  }
   downstream-read-timeout "None"
   allowed-methods "GET"
   allowed-protocols "http" "https" "h1" "h2"
-  connectors { ... }
+  connectors {
+      ...
+  }
 }
 ```
 
@@ -260,10 +318,14 @@ Route WebSocket upgrade requests by path or by the `Upgrade` header:
 
 ```kdl
 // Route by path
-match { path-prefix "/ws" }
+match {
+    path-prefix "/ws"
+}
 
 // Route by upgrade header
-match { header "Upgrade" "websocket" }
+match {
+    header "Upgrade" "websocket"
+}
 ```
 
 ---
@@ -279,7 +341,7 @@ match { header "Upgrade" "websocket" }
 | Push notifications, live feeds | SSE |
 | Microservice RPC (internal) | gRPC (cleartext h2c) |
 | Microservice RPC (external or cross-region) | gRPCS (TLS) |
-| Bidirectional real-time (games, chat) | WebSocket — passes through; not validated |
+| Bidirectional real-time (games, chat) | WebSocket — passes through (see [Roadmap](roadmap.md#protocols)) |
 | AI model streaming responses | SSE (most providers) — see timeout note above |
 
 ---
@@ -288,4 +350,4 @@ match { header "Upgrade" "websocket" }
 
 - [Protocols](protocols.md) — HTTP/1.1, HTTP/2, h2c details and benchmarks
 - [Configuration Reference](configuration.md) — full KDL syntax for connectors and listeners
-- [Limitations](limitations.md) — what Flow does not support
+- [How Flow Behaves](behavior.md) — failures, streaming, and WebSocket behavior

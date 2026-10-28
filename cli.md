@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Configuration Reference](configuration.md) • [Operations](operations.md) • [Performance](performance.md)
 
 Flow is started from the command line and configured from a KDL file. The command line
@@ -252,7 +252,9 @@ There is no `--no-daemonize`, and adding one wouldn't help: the CLI switches are
 with the config file (logically OR'd), not substituted for it.
 
 ```kdl
-system { daemonize true }
+system {
+    daemonize true
+}
 ```
 
 With that in your config, **every** invocation daemonizes. No flag will stop it. To run in

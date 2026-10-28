@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Operations](operations.md)
 
 Flow's throughput is **CPU-bound and depends heavily on your configuration** .
@@ -153,6 +153,10 @@ filtering, is what sets the ceiling. Flow's own logic takes only tens of microse
 request.
 
 That gives you two levers: **encrypt less**, or **add cores**.
+
+### Memory
+
+Memory is secondary: CPU saturates first. In the measured configurations resident memory ranged from about 16 to 53 MB (see the [detailed metrics](#detailed-metrics-at-the-sustained-ceiling)). It grows with the number of concurrent connections, because each connection holds buffers for request and response data. HTTP/1.1 and cleartext HTTP/2 to an HTTP/1.1 backend use less than TLS with HTTP/2 on both hops. Buffer sizes are not tunable; to use less memory, reduce concurrent connections with client-side connection pooling.
 
 ### Lever 1 — remove encryption from the backend hop
 
@@ -336,9 +340,9 @@ When you measure:
   requests/second than you asked for, you are past the wall and the latency figures are
   queueing artifacts.
 - **Watch CPU headroom** (`mpstat -P ALL 1`), not average CPU. Idle percentage is what
-  predicts the cliff.
+  predicts how close you are to the ceiling.
 - **Turn the `timing-header` filter off** if enabled — it adds two response headers per request; not a big cost, but keep the benchmark clean.
-- **Repeat runs near the limit.** Close to the cliff, whether a run collapses is partly luck.
+- **Repeat runs near the limit.** Close to the ceiling, results vary from run to run.
   A single run near the limit tells you very little.
 
 ---
@@ -395,6 +399,6 @@ faster at this workload. (The comparison was run on the cleartext configuration,
 is not what separates them.)
 
 The practical consequence: at the same request rate, the AMD machine has more headroom before
-the cliff. **If you're choosing an instance type for Flow, N2D is the better value.**
+the ceiling. **If you're choosing an instance type for Flow, N2D is the better value.**
 
 Memory is a non-issue at any of these rates.

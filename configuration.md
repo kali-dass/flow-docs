@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Routing](routing.md) • [Policies](policies.md) • [Performance](performance.md)
 
 Flow is configured with a single [KDL](https://kdl.dev) file, passed with `--config-kdl`.
@@ -144,10 +144,11 @@ stdout, which has nowhere useful to go once the process is detached. See
 
 ### `logging.access-log` (reserved)
 
-An `access-log` block may appear inside `logging` — Flow accepts it without error, but does
-not yet read or act on anything inside it. Per-request access logging is not implemented.
-The name is reserved so configs that include it now will not need to be changed when the
-feature ships.
+An `access-log` block may appear inside `logging`. Flow accepts it without error and does not
+read anything inside it. The name is reserved so configs that include it now will not need to
+be changed later.
+
+> **Planned:** per-request access logging. See [Roadmap](roadmap.md#observability).
 
 ### Real client IP
 
@@ -250,8 +251,12 @@ services {
         route-cache-dynamic-capacity 10000
         keepalive-timeout-secs 60
 
-        listeners { ... }
-        routes { ... }
+        listeners {
+            ...
+        }
+        routes {
+            ...
+        }
         path-control { ... }   // optional, applies to every route
     }
 }
@@ -371,13 +376,17 @@ services {
         listeners {
             "0.0.0.0:8000" offer-h2=true                      // h2c + HTTP/1.1
         }
-        routes { /* … */ }
+        routes {
+            /* … */
+        }
     }
     Public {
         listeners {
             "0.0.0.0:8443" cert-path="…" key-path="…" offer-h2=true
         }
-        routes { /* … */ }
+        routes {
+            /* … */
+        }
     }
 }
 ```
@@ -424,7 +433,9 @@ routes {
         allowed-methods "GET" "PUT" "PATCH" "DELETE" "HEAD" "OPTIONS"
         allowed-protocols "http" "https" "h1" "h2"
 
-        connectors { ... }
+        connectors {
+            ...
+        }
         path-control { ... }            // optional, per-route
         cache-response { ... }          // optional, per-route — see Cache response policy
         downstream-read-timeout "None"  // optional — "None" or positive integer (seconds)
@@ -445,7 +456,9 @@ Flow from starting.
 ```kdl
 route {
     name "orders-read"
-    match { path-prefix "/orders" }
+    match {
+        path-prefix "/orders"
+    }
     ...
 }
 ```
@@ -657,7 +670,9 @@ For DNS discovery, use a hostname connector. `discovery "Dns"` is auto-detected 
 ```kdl
 // Plaintext HTTP — common for internal Kubernetes services
 connectors {
-    load-balance { selection "RoundRobin" }
+    load-balance {
+        selection "RoundRobin"
+    }
     "orders-svc.default.svc.cluster.local:8080"
 }
 
@@ -721,60 +736,41 @@ The connector-level `dns-interval-secs` attribute controls how often Flow re-res
 
 ### Health checking
 
-Flow can periodically probe each backend and remove unhealthy ones from the pool.
-
-| `health-check` | Behavior |
-|---|---|
-| `"None"` | No probing. All backends receive traffic regardless of state. This is the default. |
-| `"Active"` | Periodic HTTP GET probe. Backends are removed after `unhealthy-threshold` consecutive failures and restored after `healthy-threshold` consecutive successes. |
+`health-check` in the `load-balance` block controls backend probing. `"None"` (the default) sends no probes; `"Active"` sends a periodic HTTP GET to each backend. Health checking works with static and DNS-discovered connectors.
 
 ```kdl
 connectors {
     load-balance {
         selection "RoundRobin"
         health-check "Active"
-        health-check-path "/healthz"       // path to probe — default /healthz
-        health-check-interval-secs 10      // seconds between probes — default 10
-        health-check-timeout-secs 2        // probe timeout — default 2
-        unhealthy-threshold 3              // consecutive failures to mark down — default 3
-        healthy-threshold 2                // consecutive successes to restore — default 2
+        health-check-path "/healthz"       // default
+        health-check-interval-secs 10      // default
+        health-check-timeout-secs 2        // default
+        unhealthy-threshold 3              // default
+        healthy-threshold 2                // default
     }
     "10.0.0.1:3000"
     "10.0.0.2:3000"
 }
 ```
 
-All fields except `health-check "Active"` are optional; the defaults shown apply. Health checking works with both static IP and DNS-discovered connectors.
-
-| Field | Default | Meaning |
-|---|---|---|
-| `health-check-path` | `"/healthz"` | HTTP path Flow sends the GET probe to. Change this if your backend exposes a health endpoint at a different path. |
-| `health-check-interval-secs` | `10` | Seconds between probes per backend. Lower values detect failures faster but add more background traffic. |
-| `health-check-timeout-secs` | `2` | How long Flow waits for a probe response before counting it as a failure. Should be less than `health-check-interval-secs`. |
-| `unhealthy-threshold` | `3` | Consecutive probe failures before a backend is removed from the pool. Higher values avoid removing a backend on a transient blip. |
-| `healthy-threshold` | `2` | Consecutive probe successes before a removed backend is returned to the pool. Prevents flapping on a backend that is still unstable. |
-
-**Fail-open**: when all backends are marked unhealthy, Flow routes requests anyway rather than returning errors immediately. This prevents a misconfigured probe from taking a service offline.
-
-**Active vs passive health checking**: `health-check "Active"` is *active* — Flow sends synthetic probes independent of real traffic, catching backends that are completely down before any client request hits them. It does not catch backends that are alive and pass `/healthz` but are failing real requests (overloaded, partially broken). That is *passive* failure detection, handled by circuit breaking. See [Design Decisions → How Should I Handle Backend Failures?](design-decisions.md#how-should-i-handle-backend-failures) for a full comparison.
+All fields except `health-check "Active"` are optional. For what each field does, how probing works, and when to combine it with circuit breaking, see [Health checking](policies/health-checking.md).
 
 ### Circuit breaking
 
-Circuit breaking lives inside `load-balance` rather than `path-control` because it operates at the **backend selection layer**, not the request pipeline layer. Policies in `path-control` run after a route is matched but before a backend is chosen — they don't know which specific backend will serve the request. Circuit breaking needs to track the outcome *per backend* (which backend returned a 5xx, which backend's connection failed) and gate future requests to that specific backend. That coupling to backend identity is why it sits alongside `selection`, `health-check`, and `discovery`, not alongside `ip-restriction` or `rate-limit`.
-
-Circuit breaking observes real request outcomes on live traffic. When the error rate (HTTP 5xx responses and connection failures) exceeds a threshold in a time window, the per-backend circuit opens and requests fail fast. After a cooldown the circuit becomes half-open — a small number of probe requests are allowed through; success closes the circuit, failure reopens it.
+`circuit-breaker` is a block inside `load-balance` that trips a backend when its error rate on real traffic exceeds a threshold.
 
 ```kdl
 connectors {
     load-balance {
         selection "RoundRobin"
         circuit-breaker {
-            error-threshold-pct 50   // trip at 50% errors — default
-            window-secs 60           // 60-second window — default
-            min-requests 5           // need 5 requests before tripping — default
-            cooldown-secs 30         // 30s open before trying half-open — default
-            probe-requests 1         // 1 probe request per half-open cycle — default
-            window-strategy "SlidingWindow"  // see Window strategy below — default
+            error-threshold-pct 50           // default
+            window-secs 60                   // default
+            min-requests 5                   // default
+            cooldown-secs 30                 // default
+            probe-requests 1                 // default
+            window-strategy "SlidingWindow"  // default; or "TimeBuckets"
         }
     }
     "10.0.0.1:3000"
@@ -782,79 +778,7 @@ connectors {
 }
 ```
 
-All fields are optional; the defaults above apply.
-
-| Field | Default | Meaning |
-|---|---|---|
-| `error-threshold-pct` | `50` | Integer 1–100. The circuit opens when this percentage of requests in the window return a 5xx response. Lower values trip faster; higher values tolerate more errors before opening. |
-| `window-secs` | `60` | How far back (in seconds) to look when calculating the error rate. Shorter windows react faster to sudden failures; longer windows smooth over brief spikes. |
-| `min-requests` | `5` | Minimum number of requests in the window before the circuit can trip. Prevents tripping on the very first error at startup or after a long idle period. |
-| `cooldown-secs` | `30` | How long (in seconds) the circuit stays open before moving to half-open and allowing probe requests. Gives the backend time to recover before traffic resumes. |
-| `probe-requests` | `1` | Number of requests allowed through in half-open state. A successful probe closes the circuit; any failure re-opens it and resets the cooldown. Higher values give more confidence before closing but delay recovery. |
-| `window-strategy` | `"SlidingWindow"` | How outcomes are tracked — `"SlidingWindow"` (exact, default) or `"TimeBuckets"` (fixed-memory, approximate). See [Window strategy](#window-strategy) below. |
-| `bucket-count` | `10` | Number of time buckets. Only valid with `window-strategy "TimeBuckets"`. Must be ≥ 2. Slot width = `window-secs / bucket-count` seconds. |
-
-You can combine `circuit-breaker` with `health-check "Active"` — they catch complementary failure modes. Circuit breaking catches backends that pass health probes but fail real requests; active health checking catches backends that are completely down.
-
-**Fail-open**: the same policy as active health checking — if all backends on a route are circuit-open, Flow routes requests anyway rather than returning errors to every client.
-
-#### Window strategy
-
-Two strategies control how request outcomes are tracked within the window:
-
-| Strategy | How it works | Best for |
-|---|---|---|
-| `"SlidingWindow"` (default) | Exact per-request tracking. Every outcome is stored with a timestamp; entries outside the window are discarded on each new request. | Most routes. Start here. Memory grows with traffic — at 1,000 req/s with a 60 s window, roughly 1 MB per backend. |
-| `"TimeBuckets"` | Divides the window into `bucket-count` fixed-width time slots. Each slot holds aggregate success/failure counts. Stale slots reset lazily on next write. Error rate has ±one slot-width of approximation. | Routes with very high request rates (tens of thousands per second per backend), or when you need a fixed, predictable memory footprint regardless of traffic. |
-
-**Rule of thumb**: use `"SlidingWindow"` unless you have a specific reason not to. Switch to `"TimeBuckets"` when the route is handling tens of thousands of requests per second per backend and you want to cap per-backend circuit-breaker memory to a known constant (a few hundred bytes).
-
-**Example — SlidingWindow (default)**
-
-Exact tracking. Suitable for most routes. `window-strategy` can be omitted since `"SlidingWindow"` is the default.
-
-```kdl
-connectors {
-    load-balance {
-        selection "RoundRobin"
-        circuit-breaker {
-            error-threshold-pct 50
-            window-secs 60
-            min-requests 5
-            cooldown-secs 30
-            probe-requests 1
-            window-strategy "SlidingWindow"
-        }
-    }
-    "10.0.0.1:3000"
-    "10.0.0.2:3000"
-}
-```
-
-**Example — TimeBuckets**
-
-Fixed-memory approximation. Use for high-traffic routes or when predictable memory is required. `bucket-count` sets the number of time slots; the example gives 10 × 6-second slots for a 60-second window.
-
-```kdl
-connectors {
-    load-balance {
-        selection "RoundRobin"
-        circuit-breaker {
-            error-threshold-pct 50
-            window-secs 60
-            min-requests 5
-            cooldown-secs 30
-            probe-requests 1
-            window-strategy "TimeBuckets"
-            bucket-count 10
-        }
-    }
-    "10.0.0.1:3000"
-    "10.0.0.2:3000"
-}
-```
-
-`bucket-count` is only valid when `window-strategy` is `"TimeBuckets"` — setting it with `"SlidingWindow"` is a configuration error. The slot width is `window-secs / bucket-count` seconds; with the example values each slot covers 6 seconds, so the error rate can be up to 6 seconds stale at the window boundary.
+All fields are optional. `bucket-count` (default `10`, at least `2`) is valid only with `window-strategy "TimeBuckets"`. For what each field does, the state machine, the window strategies, and tuning, see [Circuit breaker](policies/circuit-breaker.md).
 
 ### Protocol and TLS
 
@@ -908,7 +832,7 @@ networks. See [Performance](performance.md).
 |---|---|---|---|---|
 | `max-h2-streams` | **100** | — | ✅ | Concurrent HTTP/2 streams per upstream connection. |
 | `idle-timeout-secs` | none | ✅ | ✅ | How long an idle upstream connection is kept in the pool. |
-| `read-timeout-secs` | none | ✅ | ✅ | Max wait per read from the upstream. **Never set on streaming backends** (SSE, gRPC, WebSocket) — fires on idle intervals, not total duration. |
+| `read-timeout-secs` | none | ✅ | ✅ | Max wait per read from the upstream. **Never set on streaming backends** (SSE, streaming gRPC methods, WebSocket) — fires on idle intervals, not total duration. |
 | `write-timeout-secs` | none | ✅ | ✅ | Max wait per write to the upstream. **Never set on streaming backends** for the same reason. |
 | `h2-ping-interval-secs` | none | — | ✅ | HTTP/2 keepalive PING interval. Use instead of `read-timeout-secs` on long-lived HTTP/2 connections. |
 

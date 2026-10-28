@@ -287,7 +287,9 @@ available to downstream policies in the request pipeline.
 
 ```kdl
 filter kind="token-auth" client-id-claim="azp" tenant-id-claim="org_id" scopes-claim="scope" {
-    issuers { ... }
+    issuers {
+        ...
+    }
 }
 ```
 
@@ -356,7 +358,9 @@ in the same tenant share a namespace:
 path-control {
     request-filters {
         filter kind="token-auth" client-id-claim="sub" tenant-id-claim="org_id" {
-            issuers { ... }
+            issuers {
+                ...
+            }
         }
     }
 }
@@ -772,14 +776,20 @@ point a static-key issuer at it:
 ```kdl
 services {
     Test {
-        listeners { "0.0.0.0:8080" }
+        listeners {
+            "0.0.0.0:8080"
+        }
         routes {
             route {
                 name "catch-all"
-                match { path-prefix "/" }
+                match {
+                    path-prefix "/"
+                }
                 allowed-methods "GET"
                 allowed-protocols "http" "h1"
-                connectors { "127.0.0.1:3000" }
+                connectors {
+                    "127.0.0.1:3000"
+                }
                 path-control {
                     request-filters {
                         filter kind="token-auth" {

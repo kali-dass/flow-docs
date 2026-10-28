@@ -9,7 +9,9 @@ cache, bypassing the backend entirely.
 routes {
     route {
         name "api-v1"
-        match { path-prefix "/api/v1" }
+        match {
+            path-prefix "/api/v1"
+        }
         upstream "backend"
         cache-response {
             ttl-secs 60
@@ -138,6 +140,28 @@ not populated and every request BYPASSes.
 
 `client-id`, `tenant-id`, and `claim:` are **inert** until `token-auth` runs on the same route
 and populates `ctx.identity`. On a route with no auth plugin, every request will BYPASS.
+
+---
+
+## Alongside an external cache
+
+The cache lives in the memory of each Flow instance. It is cleared on restart and not shared between instances. For a cache shared across instances or kept across restarts, run an external cache alongside Flow:
+
+```
+Flow (node 1) ─┐
+               ├─> [Redis / CDN] ──> [Backends]
+Flow (node 2) ─┘
+```
+
+Or use a CDN for static content next to Flow for dynamic API traffic:
+
+```
+Internet
+  |
+  +---> [CDN] (static assets, cached responses)
+  |
+  +---> [Flow] (dynamic API requests, auth, routing)
+```
 
 ---
 

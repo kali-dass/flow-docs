@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
 
 Running Flow in production: process management, zero-downtime upgrades, and logging.
@@ -63,6 +63,22 @@ system {
 
 Flow writes to `<log-dir>/flow-application.log`. See [Configuration](configuration.md#loggingapp-log)
 for the full `logging.app-log` reference.
+
+---
+
+## Stopping Flow
+
+Flow reacts to three signals:
+
+| Signal | Behavior |
+|---|---|
+| `SIGTERM` | Graceful stop. Flow stops accepting new connections immediately, then waits out a **5-minute grace period** before exiting, even if no requests are in flight. |
+| `SIGINT` (Ctrl-C) | Fast stop. Flow exits without draining. |
+| `SIGQUIT` | Hands the listening sockets to a new process during an upgrade. See below. |
+
+The 5-minute grace period is fixed today. If you run Flow under an orchestrator that sends `SIGTERM` and then `SIGKILL` after a shorter delay (Kubernetes waits 30 seconds by default), raise that delay, for example with `terminationGracePeriodSeconds: 300`, or requests still in flight are cut when the process is killed.
+
+> **Planned:** a configurable shutdown timeout that exits as soon as connections drain. See [Roadmap](roadmap.md#operations).
 
 ---
 
@@ -156,26 +172,27 @@ Warnings worth watching for at startup:
 - Notices that `max-h2-streams` or `h2-ping-interval-secs` is set on an HTTP/1.1-only
   connector, where it does nothing.
 
+What is and is not logged today:
+
+- **Logged:** startup and configuration messages, errors (connection failures, invalid requests, timeouts), and warnings such as disabled certificate verification or cleartext backends.
+- **Not logged:** one record per request, and request or response bodies. For per-request visibility use the [metrics endpoint](metrics.md) or the `timing-header` filter below.
+
 ### The `timing-header` filter
 
 `timing-header` adds latency headers to responses. It's cheap to run; gate it based on
 whether you want to expose internal timing to clients, not for performance. See
 [Policies](policies/timing-header.md).
 
-### Planned: Comprehensive Logging & Observability
+### Observability beyond logs
 
-Flow's current logging is basic — startup messages with a configurable level and output only. Comprehensive observability features are **planned for future releases**:
+Flow's logging is startup messages, errors, and warnings, with a configurable level and output. For everything else, use:
 
-- **Access logs** — structured JSON request/response logs (one per request), sampled or filtered to avoid overwhelming disk I/O
-- **More metrics** — a Prometheus `/metrics` endpoint is available now as a preview (see [Metrics](metrics.md)); per-backend state, per-policy metrics, and TLS/authentication for the endpoint are planned
-- **Tracing** — OpenTelemetry integration for distributed tracing across Flow and backend services
-- **Log masking** — redaction of sensitive headers, tokens, and PII before logs reach disk
-
-Until then, rely on:
-- The [Prometheus metrics endpoint](metrics.md) for request counts, latency and in-flight requests
-- Response headers (via `timing-header` filter) for per-request latency
+- The [Prometheus metrics endpoint](metrics.md) for request counts, latency, and in-flight requests
+- Response headers (via the `timing-header` filter) for per-request latency
 - `--log-level debug` for startup diagnostics
 - External observability tools (load balancers, service mesh, APM agents) for fleet-wide visibility
+
+> **Planned:** structured access logs, per-backend and per-policy metrics, OpenTelemetry tracing, and log masking. See [Roadmap](roadmap.md#observability).
 
 ---
 
@@ -192,83 +209,33 @@ system {
 
 ### Always run with headroom
 
-Flow's capacity limit is a **vertical cliff, not a gradual slowdown** — and crossing it costs
-you three orders of magnitude in tail latency with no warning from the median. This is the
-single most important thing to know when operating Flow.
+Flow is CPU-bound, and past its ceiling it degrades gracefully: the achieved rate flattens into
+a plateau and latency rises smoothly, rather than requests failing. That is forgiving, but it
+also means there is no error to warn you. The only signs are rising latency and a widening gap
+between the rate offered and the rate delivered.
 
 Two operational rules follow from it:
 
-- **Provision below the wall, not at it.** Leave real headroom — running at the edge means one
-  traffic spike takes your p99 from milliseconds to seconds.
-- **Alert on CPU headroom and high percentiles (p99/p99.9), never on median latency.** The
-  median stays healthy right up to the moment the tail collapses, so a median-based alert will
-  not fire until it is far too late.
+- **Provision below the ceiling, not at it.** Leave real headroom, and scale out before you get
+  close to your own measured ceiling.
+- **Alert on CPU headroom and on high percentiles (p99/p99.9), not on success rate or median
+  latency.** Requests keep succeeding past the ceiling, so a success-rate alert will not fire;
+  watch idle CPU and the tail.
 
 **Measure your own workload** rather than relying on published figures — and run each test for
 at least 10–15 minutes, because shorter runs overstate capacity.
 
-See **[Performance](performance.md)** for the measured cliff, the capacity figures per
+See **[Performance](performance.md)** for what happens past the ceiling, the capacity figures per
 configuration, and guidance on benchmarking your own setup. Scaling guidance — adding cores,
 and running multiple instances behind a load balancer — is there too.
 
 ---
 
-## Health checking
+## Detecting failing backends
 
-Flow supports active HTTP health checking. Configure it in the `load-balance` block of any connector:
+Flow can find failing backends in two ways: active health checking, which probes each backend on a timer and catches backends that are down, and circuit breaking, which watches real request outcomes and catches backends that are up but failing. Use both for defense in depth. See [Health checking](policies/health-checking.md) and [Circuit breaker](policies/circuit-breaker.md) for the configuration and tuning.
 
-```kdl
-load-balance {
-    selection "RoundRobin"
-    health-check "Active"
-    health-check-path "/healthz"       // default
-    health-check-interval-secs 10      // default: probe every 10s
-    health-check-timeout-secs 2        // default: 2s per probe
-    unhealthy-threshold 3              // default: 3 failures → removed from pool
-    healthy-threshold 2                // default: 2 successes → restored
-}
-```
-
-Flow probes each backend independently on the configured interval. A backend is removed from the pool after `unhealthy-threshold` consecutive failures and restored after `healthy-threshold` consecutive successes. All fields except `health-check "Active"` are optional.
-
-**Fail-open**: if all backends in a pool are marked unhealthy, Flow continues routing requests rather than failing immediately. This avoids a misconfigured probe taking a service offline.
-
-Without health checking (`health-check "None"`, the default), failures are only discovered when a request fails — put a health-checking layer upstream of Flow, or use DNS-based backend removal, if you need automatic failover without probing.
-
-## Circuit breaking
-
-Circuit breaking detects backends that are returning errors on real traffic — it complements active health checking, which only detects completely unresponsive backends. See [Circuit breaker](policies/circuit-breaker.md) for the full reference.
-
-Configure it in the `load-balance` block of any connector:
-
-```kdl
-load-balance {
-    selection "RoundRobin"
-    circuit-breaker {
-        error-threshold-pct 50      // trip when ≥50% of requests fail (default)
-        window-secs 10              // over this rolling window (default: 10s)
-        min-requests 5              // require at least this many requests before tripping (default: 5)
-        cooldown-secs 30            // stay Open for this long before trying a probe (default: 30s)
-        probe-requests 1            // send this many probes in HalfOpen before closing (default: 1)
-    }
-}
-```
-
-**Three-state machine**: `Closed` (normal) → `Open` (tripped, requests return 502) → `HalfOpen` (probe in progress) → back to `Closed` or `Open` depending on probe outcome.
-
-**Fail-open**: if all backends in a pool are tripped simultaneously, Flow routes requests anyway rather than returning 502 for everything. This prevents a cascading failure from taking the service offline entirely.
-
-**Two window strategies** (`window-strategy`):
-- `"SlidingWindow"` (default) — exact rolling count; use this unless the route handles tens of thousands of requests per second per backend.
-- `"TimeBuckets"` — fixed memory footprint regardless of request volume; set `bucket-count` to control granularity. Use for very high-traffic routes where per-request sliding-window memory adds up.
-
-**What to watch for in production**:
-- A backend tripped to `Open` logs at `warn` level with the backend address and error rate.
-- Probe outcomes (HalfOpen → Closed or HalfOpen → Open) are also logged at `info`/`warn`.
-- Unexpected all-backends-tripped events log at `error` — investigate backend health immediately.
-- If circuit breaking is tripping too aggressively, raise `error-threshold-pct` or `min-requests`; if recovery is too slow, reduce `cooldown-secs`.
-
-Combine with `health-check "Active"` for defense in depth: health checking removes completely down backends before circuit breaking even sees them; circuit breaking handles backends that pass probes but fail real requests.
+Operationally, alert when Flow starts returning 502s, and track the delivered request rate and error rate in the [metrics](metrics.md). For what Flow does when every backend is affected, see [How Flow Behaves](behavior.md#upstream-failures).
 
 ## Troubleshooting
 

@@ -72,7 +72,9 @@ If a hostname returns several addresses, Flow keeps **all** of them as backends 
 
 ```kdl
 connectors {
-    load-balance { selection "RoundRobin" }
+    load-balance {
+        selection "RoundRobin"
+    }
     "api.vendor.internal:443" tls-sni="api.vendor.internal" proto="h2-or-h1"
 }
 ```
@@ -88,7 +90,7 @@ Things to keep in mind:
 - Every returned address gets equal weight. DNS-level weighting tricks do not carry over.
 - Balancing is by request count, not by load. Flow has no least-connections or latency-aware selection yet.
 - A change in the DNS answer is visible to Flow only at the next re-resolution (default 30 seconds).
-- Hash-based selection (`FVNHash`, `KetamaHashing`) trades even spread for affinity, and the mapping shifts when the address set changes.
+- Hash-based selection (`"FNV"`, `"Ketama"`) trades even spread for affinity, and the mapping shifts when the address set changes.
 
 ---
 
@@ -104,7 +106,9 @@ Flow re-resolves each hostname on a fixed interval:
 |---|---|---|
 | `dns-interval-secs` | `30` | Seconds between re-resolutions of this hostname. Lower values react to DNS changes faster at the cost of more queries. Ignored on IP-literal connectors. |
 
-A successful re-resolution replaces the backend set atomically. The interval is fixed: Flow does not yet adapt it to the record TTL.
+A successful re-resolution replaces the backend set atomically. The interval is fixed and does not follow the record TTL.
+
+> **Planned:** a refresh interval that follows the record TTL. See [Roadmap](roadmap.md#routing-and-load-balancing).
 
 ---
 
@@ -188,4 +192,4 @@ The `search-domain`, `ndots`, `timeout-secs`, and `attempts` settings apply whet
 
 - [Configuration Reference: Discovery](configuration.md#discovery): `discovery` modes and connector attributes
 - [Health checking](configuration.md#health-checking) and [Circuit breaking](configuration.md#circuit-breaking): removing failed backends between DNS refreshes
-- [Known behaviors](known-behaviors.md): graceful shutdown and DNS-based drains
+- [Zero-downtime upgrades](operations.md#zero-downtime-upgrades): graceful shutdown and DNS-based drains

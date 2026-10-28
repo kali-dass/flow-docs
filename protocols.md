@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Technical Overview](technical-overview.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 
 ## Supported Protocols
 
@@ -49,6 +49,20 @@ Flow can **terminate TLS** from incoming clients and/or **originate TLS** to ups
 - **To upstreams**: Flow originates a new TLS connection to each upstream independently.
 - **Hybrid**: TLS from clients, cleartext to internal upstreams (common pattern).
 
+### Strict HTTP/2 (`h2-only`)
+
+A connector with `proto="h2-only"` must talk HTTP/2 to the backend. If the backend answers over HTTP/1.1 instead (it does not support HTTP/2, it does not advertise `h2` during the TLS handshake, or something in between strips it), Flow returns **502 Bad Gateway** and does not send the request over HTTP/1.1. Some proxies fall back silently; Flow does not, because a silent fallback hides a misconfiguration and costs you the multiplexing you configured for.
+
+With cleartext HTTP/2 (`allow-h2c=true`) there is no negotiation to fall back from: a backend that does not speak HTTP/2 on that port fails to connect.
+
+If HTTP/1.1 is acceptable for the backend, use `proto="h2-or-h1"`:
+
+```kdl
+"backend.example.com:443" proto="h2-or-h1" tls-sni="backend.example.com"
+```
+
+To diagnose a 502 from an `h2-only` connector, see [Troubleshooting](operations.md#502s-on-a-connector-with-protoh2-only).
+
 ## Mixed Protocols
 
 Flow speaks **different protocols on each hop**:
@@ -63,18 +77,11 @@ Protocol mismatch is fine — Flow translates between them. The only constraint:
 
 Throughput depends on three factors:
 
-1. **Encryption** — TLS vs cleartext (encryption costs ~−29% throughput)
-2. **Protocol** — HTTP/1.1 vs HTTP/2 (HTTP/2 multiplexing gains ~+51% vs HTTP/1.1)
-3. **Multiplexing scope** — client hop only vs both hops (end-to-end multiplexing gains the most)
+1. **Encryption**: TLS costs throughput compared with cleartext.
+2. **Protocol**: HTTP/2 multiplexing gains throughput compared with HTTP/1.1.
+3. **Multiplexing scope**: multiplexing on both hops gains the most; multiplexing on the client hop only gains less.
 
-**Measured throughput (2 CPU cores)**:
-- HTTP/1.1, cleartext: ~18,500 req/s
-- HTTP/1.1, TLS: ~14,300 req/s
-- HTTP/2, TLS (both hops): ~20,000 req/s
-- h2c (client h2c, backend HTTP/1.1): ~22,700 req/s
-- h2c (both hops): **~28,000 req/s** (fastest)
-
-For detailed latency percentiles, memory, and CPU use at each throughput, see [Performance](performance.md).
+For measured throughput, latency percentiles, memory, and CPU for each combination, see [Performance](performance.md).
 
 ## Configuration Examples
 
@@ -124,4 +131,4 @@ connectors {
 - **Choosing a protocol?** See [Design Decisions](design-decisions.md) for scenarios and trade-offs.
 - **Configuring Flow?** See [Configuration Reference](configuration.md) for complete KDL syntax.
 - **Evaluating throughput?** See [Performance](performance.md) for detailed benchmarks and capacity planning.
-- **Understanding constraints?** See [Architectural Constraints](architecture-constraints.md) for stream limits and other limits.
+- **Understanding stream limits?** See [How Flow Behaves](behavior.md#http2-stream-concurrency) for HTTP/2 stream concurrency, and [Performance](performance.md#memory) for memory and CPU limits.

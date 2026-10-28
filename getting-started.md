@@ -3,7 +3,7 @@
 > **New here?** You're in the right place
 > **Want more context?** See [Technical Overview](technical-overview.md)
 > **Making a decision?** See [Design Decisions](design-decisions.md)
-> **Understanding limitations?** See [Limitations](limitations.md)
+> **Know what to expect?** See [How Flow Behaves](behavior.md)
 
 This guide takes you from an empty directory to a working proxy in a few minutes.
 
@@ -153,17 +153,25 @@ Routes are matched most-specific-first, so you can layer them:
 routes {
     route {
         name "api"
-        match { path-prefix "/api" }
+        match {
+            path-prefix "/api"
+        }
         allowed-methods "GET" "POST"
         allowed-protocols "http" "h1"
-        connectors { "10.0.0.1:3000" }
+        connectors {
+            "10.0.0.1:3000"
+        }
     }
     route {
         name "catch-all"
-        match { path-prefix "/" }
+        match {
+            path-prefix "/"
+        }
         allowed-methods "GET"
         allowed-protocols "http" "h1"
-        connectors { "10.0.0.9:8080" }
+        connectors {
+            "10.0.0.9:8080"
+        }
     }
 }
 ```
