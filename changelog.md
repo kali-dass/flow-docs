@@ -36,7 +36,7 @@
 #### Routing and listeners
 
 - **Per-route downstream timeouts** — two new per-route fields control downstream H1 connection behavior (both no-ops on HTTP/2):
-  - `downstream-read-timeout` — overrides the 60-second default downstream HTTP/1.1 read timeout. `"None"` disables it entirely (required for SSE, WebSocket, and MCP streaming routes); a positive integer sets an explicit cap.
+  - `downstream-read-timeout` — overrides the 60-second default downstream HTTP/1.1 read timeout. `"None"` disables it entirely (needed for WebSocket routes); a positive integer sets an explicit cap.
   - `downstream-write-timeout` — caps how long Flow waits for a slow HTTP/1.1 client to accept a write. Flow applies no write timeout by default; set a positive integer to reclaim connections from stalled clients.
   See [Non-REST Protocols](non-rest-protocols.md).
 

@@ -532,16 +532,16 @@ Both downstream timeout fields are **H1-only** — they have no effect on HTTP/2
 
 ### `downstream-read-timeout` (optional)
 
-Controls the downstream H1 read timeout for this route. The default is **60 seconds** — correct for normal REST routes but too short for long-lived streaming connections (SSE, WebSocket, MCP).
+Controls the downstream H1 read timeout for this route. The default is **60 seconds** — correct for normal REST routes and for SSE responses, but too short for WebSocket, where the connection is read from the client after the upgrade and a silent connection is closed.
 
 | Value | Meaning |
 |---|---|
 | absent | Default (60 s) |
-| `"None"` | Disabled — no read timeout; required for SSE, WebSocket, MCP |
+| `"None"` | Disabled — no read timeout; required for WebSocket |
 | positive integer | Explicit cap in seconds (e.g. `3600`) |
 
 ```kdl
-downstream-read-timeout "None"   // SSE / WebSocket / MCP — unbounded
+downstream-read-timeout "None"   // WebSocket — unbounded
 downstream-read-timeout 3600     // generous-but-bounded (1 hour)
 ```
 
@@ -563,6 +563,139 @@ downstream-write-timeout 30    // drop clients that stall for > 30 s on a write
 
 `0` is rejected. No-op on HTTP/2 downstream connections. See [Non-REST Protocols](non-rest-protocols.md)
 for streaming protocol configuration examples.
+
+### Choosing timeouts by traffic type
+
+Timeouts guard against stuck connections, but a timeout that is right for a request and response is wrong for a stream that is quiet between messages. Match the settings to the traffic on the route.
+
+| Traffic | `downstream-read-timeout` (HTTP/1.1 clients) | Upstream `read-timeout-secs` and `write-timeout-secs` | `h2-ping-interval-secs` | HTTP/2 |
+|---|---|---|---|---|
+| REST (request and response) | Default (60 s) | Optional, for example 30 | Not needed | Optional |
+| SSE | Default; no setting needed | Never set | 30 on an HTTP/2 upstream | Optional |
+| WebSocket | `"None"` | Never set | Not applicable (HTTP/1.1 only) | Not supported |
+| gRPC, unary calls | Not applicable (HTTP/2 clients) | Optional, for example 10 | Optional | `offer-h2=true` on the listener; `proto="h2-only"` with `allow-h2c=true` (cleartext) or `tls-sni` (TLS) on the connector |
+| gRPC, streaming calls | Not applicable | Never set | 30 | Same as unary |
+
+Two more settings apply to client connections. `downstream-write-timeout` reclaims connections from HTTP/1.1 clients that stop reading, and is off by default. `max-h2-streams` needs no setting, because it defaults to 100.
+
+**Why the upstream timeouts differ.** `read-timeout-secs` and `write-timeout-secs` fire when a single read or write waits longer than the limit, so they are idle timers, not limits on how long a call may last. They suit a request and response, where silence means a hung backend, and they cut a stream that is merely quiet. For a stream, use `h2-ping-interval-secs` on HTTP/2 upstreams: Flow probes the connection and closes it only if the peer stops answering. Flow has no limit on the total duration of an HTTP/2 stream; the client's own deadline bounds it.
+
+**REST.** A backend that does not answer within 30 seconds fails the request with a 502.
+
+```kdl
+services {
+    Api {
+        listeners {
+            "0.0.0.0:8080"
+        }
+        routes {
+            route {
+                name "orders"
+                match {
+                    path-prefix "/orders"
+                }
+                allowed-methods "GET" "POST"
+                allowed-protocols "http" "h1"
+                connectors {
+                    "10.0.0.5:8080" read-timeout-secs=30 write-timeout-secs=30
+                }
+            }
+        }
+    }
+}
+```
+
+**SSE.** No upstream timeouts, and an optional write timeout to drop clients that stop reading. With an HTTP/2 upstream, add a ping interval:
+
+```kdl
+services {
+    Events {
+        listeners {
+            "0.0.0.0:8080"
+        }
+        routes {
+            route {
+                name "events"
+                match {
+                    path-prefix "/events"
+                }
+                downstream-write-timeout 30
+                allowed-methods "GET"
+                allowed-protocols "http" "h1"
+                connectors {
+                    "10.0.0.6:8080" proto="h2-only" allow-h2c=true h2-ping-interval-secs=30
+                }
+            }
+        }
+    }
+}
+```
+
+For an HTTP/1.1 upstream, drop `proto`, `allow-h2c`, and the ping interval; there is nothing to tune upstream.
+
+**WebSocket.** A WebSocket is read from the client after the upgrade, and the default 60-second read timeout closes a silent connection, so disable it. The upstream connector sets no timeouts.
+
+```kdl
+services {
+    Realtime {
+        listeners {
+            "0.0.0.0:8080"
+        }
+        routes {
+            route {
+                name "ws"
+                match {
+                    path-prefix "/ws"
+                }
+                downstream-read-timeout "None"
+                allowed-methods "GET"
+                allowed-protocols "http" "h1"
+                connectors {
+                    "10.0.0.7:8080"
+                }
+            }
+        }
+    }
+}
+```
+
+**gRPC.** The listener accepts cleartext HTTP/2, and the connector speaks HTTP/2 to the backend. Timeouts belong to the connector, so give each call type its own route: the unary method has a read timeout, and the streaming method has a ping interval and no read timeout. Both routes can point to the same backend and share one connection, and each keeps its own settings.
+
+```kdl
+services {
+    Grpc {
+        listeners {
+            "0.0.0.0:8080" offer-h2=true
+        }
+        routes {
+            route {
+                name "orders-get"
+                match {
+                    path-prefix "/shop.Orders/GetOrder"
+                }
+                allowed-methods "POST"
+                allowed-protocols "h2"
+                connectors {
+                    "10.0.0.8:50051" proto="h2-only" allow-h2c=true read-timeout-secs=10 write-timeout-secs=10
+                }
+            }
+            route {
+                name "orders-watch"
+                match {
+                    path-prefix "/shop.Orders/WatchOrders"
+                }
+                allowed-methods "POST"
+                allowed-protocols "h2"
+                connectors {
+                    "10.0.0.8:50051" proto="h2-only" allow-h2c=true h2-ping-interval-secs=30
+                }
+            }
+        }
+    }
+}
+```
+
+For TLS from gRPC clients, give the listener a certificate and key (`cert-path`, `key-path`) and keep `offer-h2=true`; `allowed-protocols "h2"` stays the same, because every HTTP/2 request is `h2`. For TLS to the backend, replace `allow-h2c=true` with `tls-sni`. See [Non-REST Protocols](non-rest-protocols.md) for the SSE, WebSocket, and gRPC details.
 
 ---
 

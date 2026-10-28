@@ -4,7 +4,7 @@ Short answers, with a link to the page that has the detail. For what is availabl
 
 **Can Flow cache responses?** Yes. Add a `cache-response { }` block to a route. It is TTL-based, held in memory, `Cache-Control` aware, and supports Vary-based variants and per-identity isolation. See [Cache response](policies/cache-response.md).
 
-**Can Flow proxy gRPC?** Yes. gRPC over cleartext HTTP/2, including streaming calls, is proxied end to end. See [gRPC](non-rest-protocols.md#grpc).
+**Can Flow proxy gRPC?** Yes. gRPC over cleartext HTTP/2 or TLS, on either hop between the client, Flow and the backend, including streaming calls, is proxied end to end. See [gRPC](non-rest-protocols.md#grpc).
 
 **Can Flow check whether a backend is healthy?** Yes. Set `health-check "Active"` in the `load-balance` block and Flow probes each backend and removes unhealthy ones from the pool. See [Health checking](policies/health-checking.md).
 

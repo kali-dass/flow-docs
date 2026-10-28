@@ -51,7 +51,8 @@ For what changed in each build, see the [Changelog](changelog.md).
 | HTTP/1.1 and HTTP/2, client side and upstream | Available | [Protocols](protocols.md) |
 | Cleartext HTTP/2 (h2c) to upstreams | Available | [Protocols](protocols.md) |
 | gRPC over cleartext HTTP/2 (unary and streaming) | Available | [Non-REST Protocols](non-rest-protocols.md) |
-| gRPC over TLS | Planned | |
+| gRPC over TLS from clients (TLS terminated at Flow) | Available | [Non-REST Protocols](non-rest-protocols.md#grpcs-tls) |
+| gRPC over TLS to the backend | Available | [Non-REST Protocols](non-rest-protocols.md#tls-from-flow-to-the-backend) |
 | gRPC-native error responses for errors Flow produces | Planned | Today these reach gRPC clients as HTTP errors. |
 | Server-Sent Events (SSE) | Available | [Non-REST Protocols](non-rest-protocols.md) |
 | WebSocket passthrough | Preview | The upgrade passes through; not yet validated against real WebSocket clients. See [Non-REST Protocols](non-rest-protocols.md). |

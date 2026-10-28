@@ -12,9 +12,10 @@ This page covers Flow's support for protocols and traffic patterns beyond plain 
 |---|---|---|
 | GraphQL | ✅ Works | Plain HTTP POST — no special config |
 | JSON-RPC | ✅ Works | Plain HTTP POST — no special config |
-| Server-Sent Events (SSE) | ✅ Works | Requires per-route timeout config — see below |
-| gRPC (cleartext h2c) | ✅ Works | Requires h2c config |
-| gRPCS (TLS) | See Roadmap | Configured like any HTTPS + HTTP/2 upstream. See [Roadmap](roadmap.md#protocols) |
+| Server-Sent Events (SSE) | ✅ Works | No downstream timeout needed; see below |
+| gRPC (cleartext h2c) | ✅ Works | Plaintext listener with `offer-h2=true`; connector with `allow-h2c=true` |
+| gRPCS (TLS from clients) | ✅ Works | TLS listener with `offer-h2=true` |
+| gRPCS (TLS to the backend) | ✅ Works | Connector with `tls-sni` and `proto="h2-only"` |
 | WebSocket | ⚠️ Passes through | Transparent; see below and the [Roadmap](roadmap.md#protocols) |
 
 ---
@@ -69,58 +70,40 @@ SSE is a one-directional streaming protocol over HTTP. The server sends a stream
 
 ### Configuration
 
-### Downstream timeout (HTTP/1.1 clients only)
-
-`downstream-read-timeout` only affects **HTTP/1.1 downstream connections**. Flow's default downstream read timeout is 60 seconds — an HTTP/1.1 client connection silent for more than 60 seconds is closed. For SSE over HTTP/1.1 this is too short: an idle event stream (no new events from the server for > 60 s) will be torn down.
-
-Set `downstream-read-timeout "None"` on any route that carries SSE traffic from HTTP/1.1 clients:
+An SSE route needs no special downstream setting. Flow's default 60-second downstream read timeout applies to the client's request, and a stream that is silent for longer than that stays open: the client has sent nothing, so there is nothing to time out. An SSE response to a plain `GET` and an SSE response to a `POST` with a body (the pattern used by LLM streaming APIs) both behave this way.
 
 ```kdl
 route {
-  name "events"
-  match {
-      path-prefix "/events"
-  }
-  downstream-read-timeout "None"
-  allowed-methods "GET"
-  allowed-protocols "http" "https" "h1" "h2"
-  connectors {
-      ...
-  }
+    name "events"
+    match {
+        path-prefix "/events"
+    }
+    allowed-methods "GET"
+    allowed-protocols "http" "https" "h1" "h2"
+    connectors {
+        "10.0.0.6:8080"
+    }
 }
 ```
 
-> **Note**: `downstream-read-timeout "None"` removes the 60-second cap on the downstream connection. Apply it only to routes that carry long-lived streaming connections, not to general REST routes.
-
-If you want a generous-but-bounded timeout instead of fully unbounded, use a positive integer (seconds):
-
-```kdl
-downstream-read-timeout 3600    // 1-hour cap instead of unbounded
-```
-
-**HTTP/2 clients** (h2c or TLS) are unaffected by `downstream-read-timeout` — the 60-second timer does not exist on H2 downstream connections. If your SSE clients connect exclusively over HTTP/2, no timeout configuration is needed.
-
-### Downstream write timeout
-
-`downstream-write-timeout` caps how long Flow waits for a slow HTTP/1.1 client to accept a write. Flow applies no write timeout by default — without this, a stalled client holds the connection open indefinitely. Like `downstream-read-timeout`, this is H1-only and a no-op on HTTP/2.
-
-For SSE routes, a write timeout is less critical than the read timeout (the server is pushing events; the client is mostly just reading). Set it if you want to reclaim connections from clients that stop consuming:
+To reclaim connections from HTTP/1.1 clients that stop consuming events, add `downstream-write-timeout`. It caps how long Flow waits for a client to accept a write, applies only to HTTP/1.1 clients, and is off by default:
 
 ```kdl
 route {
-  name "events"
-  match {
-      path-prefix "/events"
-  }
-  downstream-read-timeout "None"
-  downstream-write-timeout 30     // drop clients that stall for > 30 s on a write
-  allowed-methods "GET"
-  allowed-protocols "http" "https" "h1" "h2"
-  connectors {
-      ...
-  }
+    name "events"
+    match {
+        path-prefix "/events"
+    }
+    downstream-write-timeout 30     // drop clients that stall for more than 30 s on a write
+    allowed-methods "GET"
+    allowed-protocols "http" "https" "h1" "h2"
+    connectors {
+        "10.0.0.6:8080"
+    }
 }
 ```
+
+For every timeout by traffic type, with complete examples, see [Choosing timeouts by traffic type](configuration.md#choosing-timeouts-by-traffic-type).
 
 ### Upstream timeout (applies to both H1 and H2)
 
@@ -128,8 +111,8 @@ Do not set `read-timeout-secs` or `write-timeout-secs` on connectors serving SSE
 
 ```kdl
 connectors {
-  // read-timeout-secs and write-timeout-secs omitted — never set these for streaming upstreams
-  "events-backend.internal:8080"
+    // read-timeout-secs and write-timeout-secs omitted: never set these for streaming upstreams
+    "10.0.0.6:8080"
 }
 ```
 
@@ -137,13 +120,13 @@ For HTTP/2 upstreams, `h2-ping-interval-secs` keeps the connection alive at the 
 
 ```kdl
 connectors {
-  "events-backend.example.com:443" tls-sni="events-backend.example.com" proto="h2-or-h1" h2-ping-interval-secs=30
+    "10.0.0.6:8443" tls-sni="events-backend.example.com" proto="h2-or-h1" h2-ping-interval-secs=30
 }
 ```
 
 ### SSE over HTTP/2
 
-SSE works over HTTP/2 — each event stream is a separate H2 stream on a shared connection. This is more efficient than HTTP/1.1 for high fan-out (many clients, one backend). Configure the upstream connector with HTTP/2 as you would for any other service. Clients connecting over HTTP/2 require no `downstream-read-timeout` configuration.
+SSE works over HTTP/2 — each event stream is a separate H2 stream on a shared connection. This is more efficient than HTTP/1.1 for high fan-out (many clients, one backend). Configure the upstream connector with HTTP/2 as you would for any other service.
 
 ---
 
@@ -156,6 +139,17 @@ gRPC runs over HTTP/2. Flow can proxy both gRPC variants:
 | `grpc` | HTTP/2 cleartext (h2c) | `proto="h2-only"` + `allow-h2c=true` |
 | `grpcs` | HTTP/2 over TLS | `proto="h2-only"` + `tls-sni` |
 
+The two hops are independent, so all four combinations work:
+
+| Client to Flow | Flow to backend | Listener | Connector |
+|---|---|---|---|
+| Cleartext | Cleartext | `offer-h2=true` | `proto="h2-only" allow-h2c=true` |
+| TLS | Cleartext | `cert-path`, `key-path`, `offer-h2=true` | `proto="h2-only" allow-h2c=true` |
+| Cleartext | TLS | `offer-h2=true` | `proto="h2-only" tls-sni="<name>"` |
+| TLS | TLS | `cert-path`, `key-path`, `offer-h2=true` | `proto="h2-only" tls-sni="<name>"` |
+
+Every gRPC call is HTTP/2 and a `POST`, so a route that serves gRPC needs `allowed-methods "POST"` and `allowed-protocols "h2"`, whichever combination you use.
+
 ### grpc (cleartext)
 
 ```kdl
@@ -167,10 +161,10 @@ route {
   name "grpc-yourservice"
   match {
     path-prefix "/grpc.YourService"
-    header "content-type" "application/grpc"
+    header name="content-type" value-regex="^application/grpc"
   }
   allowed-methods "POST"
-  allowed-protocols "http" "h2"
+  allowed-protocols "h2"
   connectors {
     load-balance {
         selection "RoundRobin"
@@ -184,35 +178,75 @@ The `offer-h2=true` attribute on the listener enables h2c detection (HTTP/2 prio
 
 ### grpcs (TLS)
 
-> **Planned:** validation of gRPC over TLS. See [Roadmap](roadmap.md#protocols). Test this configuration in your environment before relying on it.
+gRPC over TLS has two hops, and each can be encrypted independently.
+
+#### TLS from clients to Flow
+
+The common setup. Flow terminates TLS from the gRPC clients and forwards cleartext HTTP/2 to the backend, so the backend needs no certificate. The listener carries the certificate and key and negotiates HTTP/2 through ALPN:
 
 ```kdl
-listeners {
-  "0.0.0.0:443" cert-path="/etc/flow/certs/server.crt" key-path="/etc/flow/certs/server.key" offer-h2=true
-}
-
-route {
-  name "grpc-yourservice"
-  match {
-    path-prefix "/grpc.YourService"
-    header "content-type" "application/grpc"
-  }
-  allowed-methods "POST"
-  allowed-protocols "https" "h2"
-  connectors {
-    load-balance {
-        selection "RoundRobin"
+services {
+    Grpc {
+        listeners {
+            "0.0.0.0:8443" cert-path="/etc/flow/certs/server.crt" key-path="/etc/flow/certs/server.key" offer-h2=true
+        }
+        routes {
+            route {
+                name "routeguide"
+                match {
+                    path-prefix "/routeguide.RouteGuide"
+                }
+                allowed-methods "POST"
+                allowed-protocols "h2"
+                connectors {
+                    "10.0.0.8:10000" proto="h2-only" allow-h2c=true
+                }
+            }
+        }
     }
-    "grpcs-backend.internal:50051" tls-sni="grpcs-backend.internal" proto="h2-only"
-  }
 }
 ```
 
-gRPC TLS is the same as any HTTPS + HTTP/2 upstream. `proto "h2-only"` is stricter than `h2-or-h1` — it fails the request rather than silently downgrading to HTTP/1.1 if the backend does not negotiate HTTP/2 via ALPN.
+Clients connect to an `https://` address and trust the listener's certificate. A client that dials by name must use a name the certificate covers. A service cannot mix this TLS listener with a plaintext `offer-h2` listener.
+
+#### TLS from Flow to the backend
+
+When the network between Flow and the backend is not trusted, encrypt that hop too. The connector sets `tls-sni` instead of `allow-h2c`. The client side is independent: the example below takes cleartext gRPC from clients, and a TLS listener (see above) works the same way.
+
+```kdl
+services {
+    Grpc {
+        listeners {
+            "0.0.0.0:8080" offer-h2=true
+        }
+        routes {
+            route {
+                name "grpc-yourservice"
+                match {
+                    path-prefix "/grpc.YourService"
+                }
+                allowed-methods "POST"
+                allowed-protocols "h2"
+                connectors {
+                    "grpcs-backend.internal:50051" tls-sni="grpcs-backend.internal" proto="h2-only" ca-cert-path="/etc/flow/backend-ca.crt"
+                }
+            }
+        }
+    }
+}
+```
+
+`tls-sni` is the name Flow checks against the backend's certificate. With a certificate signed by a CA, set `ca-cert-path` to that CA's certificate file, or omit it if the CA is in the system trust store.
+
+`proto="h2-only"` is stricter than `h2-or-h1`: if the backend does not negotiate HTTP/2 through ALPN, Flow returns 502 rather than silently downgrading to HTTP/1.1.
+
+**Self-signed backend certificates.** Flow does not accept a self-signed leaf certificate as a trust anchor in `ca-cert-path`, and the connection fails with a certificate verification error. For a verified hop, use a certificate signed by a CA, and point `ca-cert-path` at that CA. For development with a self-signed certificate, set `verify-cert=false` on the connector, which turns certificate verification off for that backend and logs a warning at startup. Never use it in production.
 
 ### Routing gRPC traffic
 
 gRPC uses `POST` with `content-type: application/grpc`. Route by path prefix (the gRPC service name is part of the path) or by the content-type header:
+
+The regex matches `application/grpc` and variants such as `application/grpc+proto`. Several matchers in one `match` block must all match (see [Routing](routing.md#implicit-and--multiple-matchers-in-one-match-block)).
 
 ```kdl
 // Route by service path
@@ -222,7 +256,7 @@ match {
 
 // Route all gRPC to one backend
 match {
-    header "content-type" "application/grpc"
+    header name="content-type" value-regex="^application/grpc"
 }
 ```
 
@@ -264,6 +298,17 @@ route {
 
 The routes share one connection to the backend, and each keeps its own timeouts.
 
+### What has been validated
+
+Tested end to end with a Rust gRPC client and server (the RouteGuide example, which has all four call types):
+
+- Unary, server-streaming, client-streaming and bidirectional-streaming calls through all four client and backend combinations in the table above.
+- Bidirectional streams that stay open for over 60 seconds.
+- A separate route and timeouts for each call type, with several routes sharing one backend connection.
+- The 502 that gRPC clients see as `Unavailable` when no route matches or a call times out.
+
+Not yet validated: gRPC clients and servers written with other libraries (Go, Java), very large messages, client deadlines (`grpc-timeout`) and cancellation, and a write timeout on a server-streaming route under a slow client. Test these in your environment before relying on them. See [Roadmap](roadmap.md#protocols) for status.
+
 ### Policies on gRPC
 
 Flow's policies (auth, rate limiting, header manipulation) apply to gRPC requests. One note: gRPC metadata (key/value pairs analogous to HTTP headers) arrives as HTTP/2 headers — the `upsert-header` and `remove-header-key-regex` policies work on them directly. gRPC trailers (trailing metadata sent after the response body) are passed through unmodified; policies do not run on trailers.
@@ -287,7 +332,7 @@ What this means in practice:
 
 ### Required timeout configuration
 
-The same downstream read timeout issue that affects SSE also affects WebSocket. Configure `downstream-read-timeout "None"` on WebSocket routes:
+After the `101` upgrade, Flow keeps reading the client side of the connection, and the default 60-second downstream read timeout closes a WebSocket that is silent for longer. Configure `downstream-read-timeout "None"` on WebSocket routes:
 
 ```kdl
 route {
@@ -299,7 +344,7 @@ route {
   allowed-methods "GET"
   allowed-protocols "http" "https" "h1" "h2"
   connectors {
-      ...
+      "10.0.0.7:8080"
   }
 }
 ```
