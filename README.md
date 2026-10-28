@@ -4,7 +4,7 @@
 
 Flow sits in front of your applications and handles the traffic work they should not have to: encrypting connections, sending each request to the right place, protecting services from overload, and showing you what is happening. You describe what you want in one configuration file, and Flow does the rest.
 
-Flow is an advanced reverse proxy today. The direction is a full API gateway, then an LLM gateway with a model catalog, an MCP gateway with an MCP server registry, an agent-to-agent (A2A) gateway with an agent registry, and a skills registry. See the [Roadmap](roadmap.md).
+Flow is an advanced reverse proxy today. The direction is a full API gateway, then an LLM gateway with model management, an MCP gateway with an MCP server registry, an agent-to-agent (A2A) gateway with an agent registry, and a skills registry. See the [Roadmap](roadmap.md).
 
 > **Pre-release software.** Flow has not had a stable release yet, so configuration and behavior may change between builds. Once it does, changes that break existing configurations will be called out explicitly.
 
@@ -32,7 +32,7 @@ Flow is an advanced reverse proxy today. The direction is a full API gateway, th
 Flow is an advanced reverse proxy today. It is growing into:
 
 - **An API gateway**, with more authentication methods, request and response transformation, and further traffic and observability features.
-- **An LLM gateway**, with a **model catalog** of the models you have deployed and configured.
+- **An LLM gateway**, with **model management**: your organization's central list of the models it has purchased, with control over who may use which and a record of how much each team and person has used.
 - **An MCP gateway**, with an **MCP server registry** where teams register their servers for discovery and governance.
 - **An agent-to-agent (A2A) gateway**, with an **agent registry** where teams register their agents for discovery and governance.
 - **A skills registry.**
