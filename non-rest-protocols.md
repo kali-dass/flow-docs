@@ -369,7 +369,7 @@ match {
 
 // Route by upgrade header
 match {
-    header "Upgrade" "websocket"
+    header name="Upgrade" value-regex="(?i)^websocket$"
 }
 ```
 

@@ -49,6 +49,23 @@ Flow can **terminate TLS** from incoming clients and/or **originate TLS** to ups
 - **To upstreams**: Flow originates a new TLS connection to each upstream independently.
 - **Hybrid**: TLS from clients, cleartext to internal upstreams (common pattern).
 
+### Client address behind a TCP load balancer
+
+Flow decides who the client is from the connection's peer address, from `X-Forwarded-For`, or from a header you name (see
+[Real client IP](configuration.md#real-client-ip)). Those work when the thing in front of Flow is an HTTP-aware proxy or
+CDN that adds the header.
+
+A load balancer that works at the TCP level, or one that passes TLS through untouched, cannot add an HTTP header. It can
+forward the client's address in a **PROXY protocol** header at the start of the connection. Flow does not read that header
+today, so behind such a load balancer every connection appears to come from the load balancer, and policies keyed on the
+client address ([IP restriction](policies/ip-restriction.md), per-IP [rate limiting](policies/rate-limiting.md)) act on the
+wrong address.
+
+Until then, either use a load balancer mode that preserves the client's source address, or put an HTTP-aware proxy in front
+of Flow and use `X-Forwarded-For`.
+
+> **Planned:** reading the PROXY protocol header from trusted load balancers. See [Roadmap](roadmap.md#protocols).
+
 ### Strict HTTP/2 (`h2-only`)
 
 A connector with `proto="h2-only"` must talk HTTP/2 to the backend. If the backend answers over HTTP/1.1 instead (it does not support HTTP/2, it does not advertise `h2` during the TLS handshake, or something in between strips it), Flow returns **502 Bad Gateway** and does not send the request over HTTP/1.1. Some proxies fall back silently; Flow does not, because a silent fallback hides a misconfiguration and costs you the multiplexing you configured for.
