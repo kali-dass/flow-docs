@@ -308,9 +308,6 @@ services {
         listeners {
             "0.0.0.0:8443" cert-path="/path/test.crt" key-path="/path/test.key" offer-h2=true
         }
-        connectors {
-            "BACKEND:3000" tls-sni="backend" proto="h2-only" verify-cert=false
-        }
         routes {
             route {
                 name "echo"
@@ -319,6 +316,9 @@ services {
                 }
                 allowed-methods "GET"
                 allowed-protocols "https" "h2"
+                connectors {
+                    "BACKEND:3000" tls-sni="backend" proto="h2-only" verify-cert=false
+                }
             }
         }
     }

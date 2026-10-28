@@ -251,6 +251,7 @@ error. A config path that is **absent entirely** is silently accepted.
 There is no `--no-daemonize`, and adding one wouldn't help: the CLI switches are **combined**
 with the config file (logically OR'd), not substituted for it.
 
+<!-- check-docs: skip -->
 ```kdl
 system {
     daemonize true

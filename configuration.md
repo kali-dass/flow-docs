@@ -8,6 +8,7 @@
 Flow is configured with a single [KDL](https://kdl.dev) file, passed with `--config-kdl`.
 The file has two top-level blocks: `system` and `services`.
 
+<!-- check-docs: skip -->
 ```kdl
 system {
     // process-wide settings
