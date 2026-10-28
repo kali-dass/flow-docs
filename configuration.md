@@ -758,7 +758,7 @@ connectors {
 **When to use which:**
 - Homogeneous backends with no session state → `RoundRobin`
 - Simple even spread without ordering guarantees → `Random`
-- Session affinity (e.g. cache locality, MCP session stickiness) → `Ketama`
+- Session affinity (e.g. cache locality, or sticky sessions on backends that keep state in memory) → `Ketama`
 - Session affinity on a stable, rarely-changing pool → `FNV`
 
 `"FNV"` and `"Ketama"` require a `key` attribute — Flow rejects the config without one. `key` controls what is hashed:

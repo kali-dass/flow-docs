@@ -25,7 +25,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 | API gateway | Planned | The capabilities marked Planned in the sections below. |
 | LLM gateway | Planned | Token-aware rate limiting and spend limits, guardrails, model routing, provider fallover, AI response caching. |
 | Model catalog | Planned | The list of models that are deployed and configured, which routing, fallover, spend limits and rate limits refer to. |
-| MCP gateway | Planned | Session-aware routing, tool-level access control, per-session rate limits, MCP-aware guardrails. |
+| MCP gateway | Planned | Routing, tool-level access control and rate limits, MCP-aware guardrails. |
 | MCP server registry | Planned | Where teams register their MCP servers for discovery and governance. |
 | Agent-to-agent (A2A) gateway | Planned | Iteration budgets and task correlation across agent delegations. |
 | A2A agent registry | Planned | Where teams register their agents for discovery and governance. |
