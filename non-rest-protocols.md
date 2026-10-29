@@ -305,9 +305,32 @@ Tested end to end with a Rust gRPC client and server (the RouteGuide example, wh
 - Unary, server-streaming, client-streaming and bidirectional-streaming calls through all four client and backend combinations in the table above.
 - Bidirectional streams that stay open for over 60 seconds.
 - A separate route and timeouts for each call type, with several routes sharing one backend connection.
-- The 502 that gRPC clients see as `Unavailable` when no route matches or a call times out.
+- Flow's own errors reaching a gRPC client as gRPC statuses: no route, backend unreachable, rate limit, IP restriction, request termination, and a client on the wrong transport (see [Errors Flow produces on a gRPC route](#errors-flow-produces-on-a-grpc-route)).
 
 Not yet validated: gRPC clients and servers written with other libraries (Go, Java), very large messages, client deadlines (`grpc-timeout`) and cancellation, and a write timeout on a server-streaming route under a slow client. Test these in your environment before relying on them. See [Roadmap](roadmap.md#protocols) for status.
+
+### Errors Flow produces on a gRPC route
+
+Responses from your backend always pass through unchanged. When **Flow itself** answers instead (it rejected the call, or could not reach the backend), a plain HTTP error would leave a gRPC client guessing a status from the HTTP code. On a route declared with `allowed-protocols "grpc"` or `"grpcs"`, Flow answers in gRPC: HTTP `200`, `content-type: application/grpc`, a `grpc-status` and a `grpc-message`, and no body.
+
+| What happened | gRPC status | `grpc-message` |
+|---|---|---|
+| No route matches the call | `UNIMPLEMENTED` | No configured route matches this request |
+| Backend unreachable, or it did not answer in time | `UNAVAILABLE` | Upstream unavailable |
+| Rate limit exceeded | `RESOURCE_EXHAUSTED` | Too many requests |
+| Token missing or invalid | `UNAUTHENTICATED` | the policy's message |
+| Authentication service unavailable | `UNAVAILABLE` | authentication service unavailable |
+| IP restriction | `PERMISSION_DENIED` | your rejection message, or Access denied |
+| `request-termination` with an error status | from the status you set | the status's standard text |
+| Client on the wrong transport for the route | `FAILED_PRECONDITION` | This route requires a secure (TLS) connection, or accepts gRPC over cleartext HTTP/2 only |
+
+Notes:
+
+- **Rate limits are `RESOURCE_EXHAUSTED`, not `UNAVAILABLE`.** Clients retry `UNAVAILABLE`, which is wrong for a limit.
+- **No route is the one case without a declaration to consult.** There Flow looks at the request: an HTTP/2 call with a `content-type` of `application/grpc` gets the gRPC form. Any other request gets the usual JSON error.
+- **HTTP/1.1 clients keep the HTTP error.** A gRPC response needs HTTP/2, so an HTTP/1.1 request to a gRPC route still gets `400`.
+- **Other routes are unchanged.** Routes that are not declared `grpc` or `grpcs` keep their JSON errors and HTTP status codes.
+- **In metrics** these responses are HTTP 200, so they count as `status_class="2xx"`. Filter on `source="flow"` to tell them apart from calls your backend answered.
 
 ### Policies on gRPC
 

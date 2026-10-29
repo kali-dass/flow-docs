@@ -52,9 +52,7 @@ When Flow rejects a request itself, it answers with a short JSON body and `conte
 
 Policies that return a configured status, such as [IP restriction](policies/ip-restriction.md) and [Request termination](policies/request-termination.md), send the status and message you set. Responses that come from your backends pass through unchanged.
 
-These are plain HTTP errors. A gRPC client receives them as HTTP errors and maps the status itself, so a gRPC call that matches no route reports `Unavailable` and notes that the content type is `application/json`.
-
-> **Planned:** gRPC-native error responses, so gRPC clients see a gRPC status. See [Roadmap](roadmap.md#protocols).
+These are plain HTTP errors, with JSON bodies. On a route declared `grpc` or `grpcs`, and for a gRPC call that matches no route, Flow answers in gRPC instead, with a `grpc-status` the client can read. See [Errors Flow produces on a gRPC route](non-rest-protocols.md#errors-flow-produces-on-a-grpc-route).
 
 ## Rate limiting
 

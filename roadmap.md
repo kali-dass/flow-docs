@@ -53,7 +53,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 | gRPC over cleartext HTTP/2 (unary and streaming) | Available | [Non-REST Protocols](non-rest-protocols.md) |
 | gRPC over TLS from clients (TLS terminated at Flow) | Available | [Non-REST Protocols](non-rest-protocols.md#grpcs-tls) |
 | gRPC over TLS to the backend | Available | [Non-REST Protocols](non-rest-protocols.md#tls-from-flow-to-the-backend) |
-| gRPC-native error responses for errors Flow produces | Planned | Today these reach gRPC clients as HTTP errors. |
+| gRPC-native error responses for errors Flow produces | Available | [Non-REST Protocols](non-rest-protocols.md#errors-flow-produces-on-a-grpc-route) |
 | gRPC-Web (browser clients calling gRPC backends) | Planned | |
 | gRPC health checking for backends | Planned | Active health checks send an HTTP request today. A backend that reports health only through the standard gRPC health service cannot be probed. See [Health checking](policies/health-checking.md). |
 | Event-aware policies for SSE and NDJSON streams | Planned | Policies see the request and the response headers today, not the individual events or lines of a stream. See [Non-REST Protocols](non-rest-protocols.md). |

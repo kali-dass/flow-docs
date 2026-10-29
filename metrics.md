@@ -139,7 +139,7 @@ Long-lived responses would make the request-duration histogram meaningless (a st
 - `101 Switching Protocols` (`kind="websocket"`), or
 - `Content-Type: text/event-stream` (`kind="sse"`), over HTTP/1.1 or HTTP/2. MCP over SSE falls in here.
 
-Detection needs no configuration. gRPC is **not** treated as a stream, because most gRPC calls are short unary calls; gRPC traffic stays in the ordinary request metrics.
+Detection needs no configuration. gRPC is **not** treated as a stream, because most gRPC calls are short unary calls; gRPC traffic stays in the ordinary request metrics. An error that Flow itself sends to a gRPC call is also an HTTP 200, so it counts as `status_class="2xx"` with `source="flow"`; see [Non-REST Protocols](non-rest-protocols.md#errors-flow-produces-on-a-grpc-route).
 
 A stream still counts in `flow_requests_total` and the response-header, upstream, connect and overhead histograms; it is excluded only from `flow_request_duration_seconds`.
 
