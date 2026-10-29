@@ -542,6 +542,63 @@ allowed-protocols "h2"
 
 See [Routing](routing.md) for the `match` block and how competing routes are scored.
 
+### Timeouts at a glance
+
+Flow has two hops, and each has its own read and write timeout. They are set in different places and behave differently.
+
+```text
+                 downstream hop                          upstream hop
+           (set on the route)                     (set on the connector address)
+
+  Client ──────────────────────────►  Flow  ──────────────────────────► Backend
+         downstream-read-timeout            write-timeout-secs
+         (waiting for the client            (waiting to send to the backend)
+          to send)
+
+  Client ◄──────────────────────────  Flow  ◄────────────────────────── Backend
+         downstream-write-timeout           read-timeout-secs
+         (waiting for the client            (waiting for the backend
+          to accept data)                    to send)
+```
+
+| Timeout | Hop | Set on | Default | Applies to |
+|---|---|---|---|---|
+| `downstream-read-timeout` | Client to Flow | the route | 60 s | HTTP/1.1 clients only |
+| `downstream-write-timeout` | Flow to client | the route | none | HTTP/1.1 clients only |
+| `read-timeout-secs` | Backend to Flow | the connector address | none | HTTP/1.1 and HTTP/2 |
+| `write-timeout-secs` | Flow to backend | the connector address | none | HTTP/1.1 and HTTP/2 |
+
+Every one of these is an idle timer: it fires when a single read or write waits longer than the limit, not when a whole call takes too long. For streaming traffic, see [Choosing timeouts by traffic type](#choosing-timeouts-by-traffic-type).
+
+The downstream timeouts are fields of the `route`. The upstream timeouts are attributes on each backend address inside `connectors`, so they can differ per backend:
+
+```kdl
+services {
+    Api {
+        listeners {
+            "0.0.0.0:8080"
+        }
+        routes {
+            route {
+                name "orders"
+                match {
+                    path-prefix "/orders"
+                }
+                allowed-methods "GET" "POST"
+                allowed-protocols "http" "h1"
+                downstream-read-timeout 60
+                downstream-write-timeout 30
+                connectors {
+                    "10.0.0.5:8080" read-timeout-secs=30 write-timeout-secs=30
+                }
+            }
+        }
+    }
+}
+```
+
+With this route, Flow waits up to 60 seconds for a silent HTTP/1.1 client and drops a client that stalls for 30 seconds on a write. It fails a request with a 502 when the backend is silent for 30 seconds. Details: [downstream](#downstream-timeout-reference) and [upstream](#tuning).
+
 ### Downstream timeout reference
 
 Both downstream timeout fields are **H1-only** — they have no effect on HTTP/2 downstream connections.
