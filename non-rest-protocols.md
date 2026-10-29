@@ -13,9 +13,9 @@ This page covers Flow's support for protocols and traffic patterns beyond plain 
 | GraphQL | ✅ Works | Plain HTTP POST — no special config |
 | JSON-RPC | ✅ Works | Plain HTTP POST — no special config |
 | Server-Sent Events (SSE) | ✅ Works | No downstream timeout needed; see below |
-| gRPC (cleartext h2c) | ✅ Works | Plaintext listener with `offer-h2=true`; connector with `allow-h2c=true` |
-| gRPCS (TLS from clients) | ✅ Works | TLS listener with `offer-h2=true` |
-| gRPCS (TLS to the backend) | ✅ Works | Connector with `tls-sni` and `proto="h2-only"` |
+| gRPC (cleartext h2c) | ✅ Works | Plaintext listener with `offer-h2=true`; route `allowed-protocols "grpc"`; connector `proto="grpc"` |
+| gRPCS (TLS from clients) | ✅ Works | TLS listener with `offer-h2=true`; route `allowed-protocols "grpcs"` |
+| gRPCS (TLS to the backend) | ✅ Works | Connector `proto="grpcs"` with `tls-sni` |
 | WebSocket | ⚠️ Passes through | Transparent; see below and the [Roadmap](roadmap.md#protocols) |
 
 ---
@@ -136,19 +136,24 @@ gRPC runs over HTTP/2. Flow can proxy both gRPC variants:
 
 | Variant | Transport | Config |
 |---|---|---|
-| `grpc` | HTTP/2 cleartext (h2c) | `proto="h2-only"` + `allow-h2c=true` |
-| `grpcs` | HTTP/2 over TLS | `proto="h2-only"` + `tls-sni` |
+| `grpc` | HTTP/2 cleartext (h2c) | `proto="grpc"` (same as `proto="h2-only"` + `allow-h2c=true`) |
+| `grpcs` | HTTP/2 over TLS | `proto="grpcs"` + `tls-sni` (same as `proto="h2-only"` + `tls-sni`) |
 
 The two hops are independent, so all four combinations work:
 
-| Client to Flow | Flow to backend | Listener | Connector |
-|---|---|---|---|
-| Cleartext | Cleartext | `offer-h2=true` | `proto="h2-only" allow-h2c=true` |
-| TLS | Cleartext | `cert-path`, `key-path`, `offer-h2=true` | `proto="h2-only" allow-h2c=true` |
-| Cleartext | TLS | `offer-h2=true` | `proto="h2-only" tls-sni="<name>"` |
-| TLS | TLS | `cert-path`, `key-path`, `offer-h2=true` | `proto="h2-only" tls-sni="<name>"` |
+| Client to Flow | Flow to backend | Listener | Route | Connector |
+|---|---|---|---|---|
+| Cleartext | Cleartext | `offer-h2=true` | `allowed-protocols "grpc"` | `proto="grpc"` |
+| TLS | Cleartext | `cert-path`, `key-path`, `offer-h2=true` | `allowed-protocols "grpcs"` | `proto="grpc"` |
+| Cleartext | TLS | `offer-h2=true` | `allowed-protocols "grpc"` | `proto="grpcs" tls-sni="<name>"` |
+| TLS | TLS | `cert-path`, `key-path`, `offer-h2=true` | `allowed-protocols "grpcs"` | `proto="grpcs" tls-sni="<name>"` |
 
-Every gRPC call is HTTP/2 and a `POST`, so a route that serves gRPC needs `allowed-methods "POST"` and `allowed-protocols "h2"`, whichever combination you use.
+Flow does not detect gRPC. You declare it twice, and each declaration fixes one hop:
+
+- **On the route**, `allowed-protocols "grpc"` (clients on cleartext HTTP/2) or `"grpcs"` (clients on TLS). List both to accept either. It implies `POST` and HTTP/2, so you no longer write `allowed-methods "POST"` or `allowed-protocols "h2"`, and Flow refuses a client on the wrong transport.
+- **On the connector**, `proto="grpc"` (cleartext to the backend) or `proto="grpcs"` (TLS to the backend, with `tls-sni`). A gRPC route needs every connector to be HTTP/2 only.
+
+The longer `proto="h2-only"` spellings are equivalent for connectors.
 
 ### grpc (cleartext)
 
@@ -163,13 +168,12 @@ route {
     path-prefix "/grpc.YourService"
     header name="content-type" value-regex="^application/grpc"
   }
-  allowed-methods "POST"
-  allowed-protocols "h2"
+  allowed-protocols "grpc"
   connectors {
     load-balance {
         selection "RoundRobin"
     }
-    "grpc-backend.internal:50051" proto="h2-only" allow-h2c=true
+    "grpc-backend.internal:50051" proto="grpc"
   }
 }
 ```
@@ -196,10 +200,9 @@ services {
                 match {
                     path-prefix "/routeguide.RouteGuide"
                 }
-                allowed-methods "POST"
-                allowed-protocols "h2"
+                allowed-protocols "grpcs"
                 connectors {
-                    "10.0.0.8:10000" proto="h2-only" allow-h2c=true
+                    "10.0.0.8:10000" proto="grpc"
                 }
             }
         }
@@ -211,7 +214,7 @@ Clients connect to an `https://` address and trust the listener's certificate. A
 
 #### TLS from Flow to the backend
 
-When the network between Flow and the backend is not trusted, encrypt that hop too. The connector sets `tls-sni` instead of `allow-h2c`. The client side is independent: the example below takes cleartext gRPC from clients, and a TLS listener (see above) works the same way.
+When the network between Flow and the backend is not trusted, encrypt that hop too. The connector uses `proto="grpcs"` with `tls-sni`, instead of `proto="grpc"`. The client side is independent: the example below takes cleartext gRPC from clients, and a TLS listener (see above) works the same way.
 
 ```kdl
 services {
@@ -225,10 +228,9 @@ services {
                 match {
                     path-prefix "/grpc.YourService"
                 }
-                allowed-methods "POST"
-                allowed-protocols "h2"
+                allowed-protocols "grpc"
                 connectors {
-                    "grpcs-backend.internal:50051" tls-sni="grpcs-backend.internal" proto="h2-only" ca-cert-path="/etc/flow/backend-ca.crt"
+                    "grpcs-backend.internal:50051" proto="grpcs" tls-sni="grpcs-backend.internal" ca-cert-path="/etc/flow/backend-ca.crt"
                 }
             }
         }
@@ -276,10 +278,9 @@ route {
     match {
         path-prefix "/shop.Orders/GetOrder"
     }
-    allowed-methods "POST"
-    allowed-protocols "h2"
+    allowed-protocols "grpc"
     connectors {
-        "[::1]:50051" proto="h2-only" allow-h2c=true read-timeout-secs=10 write-timeout-secs=10
+        "[::1]:50051" proto="grpc" read-timeout-secs=10 write-timeout-secs=10
     }
 }
 
@@ -288,10 +289,9 @@ route {
     match {
         path-prefix "/shop.Orders/WatchOrders"
     }
-    allowed-methods "POST"
-    allowed-protocols "h2"
+    allowed-protocols "grpc"
     connectors {
-        "[::1]:50051" proto="h2-only" allow-h2c=true h2-ping-interval-secs=30
+        "[::1]:50051" proto="grpc" h2-ping-interval-secs=30
     }
 }
 ```

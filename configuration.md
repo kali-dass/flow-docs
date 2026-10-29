@@ -500,6 +500,8 @@ Every route must list at least one of these. Each request falls into **exactly o
 | `https` | HTTP/1.x over TLS |
 | `h1` | plain (cleartext) HTTP/1.1 |
 | `http` | plain (cleartext) HTTP other than 1.1, such as HTTP/1.0 |
+| `grpc` | a **gRPC** call from a cleartext HTTP/2 client (declared by you, see below) |
+| `grpcs` | a **gRPC** call from a TLS HTTP/2 client (declared by you, see below) |
 
 Because the values do not overlap, `http` alone does **not** admit ordinary plain HTTP/1.1
 requests; list `h1` for those.
@@ -513,6 +515,24 @@ requests; list `h1` for those.
 
 A request whose kind is not listed is rejected: with **426 Upgrade Required** when it arrived
 over plain HTTP and the route lists `https` or `h2` (TLS is the fix), otherwise with **400**.
+
+#### gRPC routes: `grpc` and `grpcs`
+
+Flow does not detect gRPC from the traffic. You declare a gRPC route by listing `grpc`, `grpcs`, or both:
+
+| You write | The route accepts |
+|---|---|
+| `allowed-protocols "grpc"` | gRPC from clients on a **cleartext** HTTP/2 connection (h2c) |
+| `allowed-protocols "grpcs"` | gRPC from clients on a **TLS** HTTP/2 connection |
+| `allowed-protocols "grpc" "grpcs"` | either |
+
+- A gRPC route implies `POST`, so `allowed-methods` can be left out. If you write it, it must be exactly `"POST"`.
+- A gRPC route lists only `grpc` and/or `grpcs`; do not mix them with `http`, `https`, `h1` or `h2`.
+- Every connector on a gRPC route must be HTTP/2 only: `proto="grpc"`, `proto="grpcs"` or `proto="h2-only"`.
+- The client's transport is enforced. Plain HTTP/1.1 gets **400**; a cleartext client on a `grpcs`-only route gets
+  **426**; a TLS client on a `grpc`-only route gets **400**.
+- The route says how **clients** reach Flow; the connector's `proto="grpc"` or `proto="grpcs"` says how Flow reaches the
+  **backend**. They are independent, so TLS in and cleartext out is `allowed-protocols "grpcs"` with `proto="grpc"`.
 
 To accept TLS + HTTP/2 only, and reject TLS + HTTP/1.1:
 
@@ -574,7 +594,7 @@ Timeouts guard against stuck connections, but a timeout that is right for a requ
 | REST (request and response) | Default (60 s) | Optional, for example 30 | Not needed | Optional |
 | SSE | Default; no setting needed | Never set | 30 on an HTTP/2 upstream | Optional |
 | WebSocket | `"None"` | Never set | Not applicable (HTTP/1.1 only) | Not supported |
-| gRPC, unary calls | Not applicable (HTTP/2 clients) | Optional, for example 10 | Optional | `offer-h2=true` on the listener; `proto="h2-only"` with `allow-h2c=true` (cleartext) or `tls-sni` (TLS) on the connector |
+| gRPC, unary calls | Not applicable (HTTP/2 clients) | Optional, for example 10 | Optional | `offer-h2=true` on the listener; `allowed-protocols "grpc"` or `"grpcs"` on the route; `proto="grpc"` (cleartext) or `proto="grpcs"` with `tls-sni` (TLS) on the connector |
 | gRPC, streaming calls | Not applicable | Never set | 30 | Same as unary |
 
 Two more settings apply to client connections. `downstream-write-timeout` reclaims connections from HTTP/1.1 clients that stop reading, and is off by default. `max-h2-streams` needs no setting, because it defaults to 100.
@@ -674,10 +694,9 @@ services {
                 match {
                     path-prefix "/shop.Orders/GetOrder"
                 }
-                allowed-methods "POST"
-                allowed-protocols "h2"
+                allowed-protocols "grpc"
                 connectors {
-                    "10.0.0.8:50051" proto="h2-only" allow-h2c=true read-timeout-secs=10 write-timeout-secs=10
+                    "10.0.0.8:50051" proto="grpc" read-timeout-secs=10 write-timeout-secs=10
                 }
             }
             route {
@@ -685,10 +704,9 @@ services {
                 match {
                     path-prefix "/shop.Orders/WatchOrders"
                 }
-                allowed-methods "POST"
-                allowed-protocols "h2"
+                allowed-protocols "grpc"
                 connectors {
-                    "10.0.0.8:50051" proto="h2-only" allow-h2c=true h2-ping-interval-secs=30
+                    "10.0.0.8:50051" proto="grpc" h2-ping-interval-secs=30
                 }
             }
         }
@@ -696,7 +714,7 @@ services {
 }
 ```
 
-For TLS from gRPC clients, give the listener a certificate and key (`cert-path`, `key-path`) and keep `offer-h2=true`; `allowed-protocols "h2"` stays the same, because every HTTP/2 request is `h2`. For TLS to the backend, replace `allow-h2c=true` with `tls-sni`. See [Non-REST Protocols](non-rest-protocols.md) for the SSE, WebSocket, and gRPC details.
+For TLS from gRPC clients, give the listener a certificate and key (`cert-path`, `key-path`), keep `offer-h2=true`, and use `allowed-protocols "grpcs"`. For TLS to the backend, use `proto="grpcs"` with `tls-sni` on the connector. See [Non-REST Protocols](non-rest-protocols.md) for the SSE, WebSocket, and gRPC details.
 
 ---
 
@@ -918,9 +936,9 @@ All fields are optional. `bucket-count` (default `10`, at least `2`) is valid on
 
 | Attribute | Meaning |
 |---|---|
-| `proto` | `h1-only`, `h2-only`, or `h2-or-h1`. Omitted means HTTP/1.1. See the strictness note below. |
+| `proto` | `h1-only`, `h2-only`, `h2-or-h1`, `grpc`, or `grpcs`. Omitted means HTTP/1.1. `grpc` and `grpcs` declare a gRPC backend: see below. See the strictness note below. |
 | `tls-sni` | Enables TLS to the upstream, with this SNI/hostname. **Required for HTTP/2 over TLS.** |
-| `allow-h2c` | Opt in to **cleartext HTTP/2**. Requires `proto="h2-only"` and **no** `tls-sni`. |
+| `allow-h2c` | Opt in to **cleartext HTTP/2**. Requires `proto="h2-only"` and **no** `tls-sni`. `proto="grpc"` implies it. |
 | `verify-cert` | Verify the upstream's certificate chain. Default `true`. |
 | `verify-hostname` | Verify the hostname against the cert. Default `true`. Useful to disable when the cert has an IP SAN. |
 | `ca-cert-path` | PEM file used as the *exclusive* CA trust store for this connector only. |
@@ -937,6 +955,18 @@ All fields are optional. `bucket-count` (default `10`, at least `2`) is valid on
 `allow-h2c` is mutually exclusive with `tls-sni` and rejects `h2-or-h1` — cleartext has no
 ALPN, so there is no negotiation and no HTTP/1.1 fallback. The backend **must** accept
 prior-knowledge h2c or the connection fails.
+
+> #### Declaring a gRPC backend: `proto="grpc"` and `proto="grpcs"`
+>
+> Flow does not detect gRPC from the traffic. You declare it on the connector, and you choose the transport:
+>
+> | You write | It means | Same as |
+> |---|---|---|
+> | `proto="grpc"` | gRPC over cleartext HTTP/2 | `proto="h2-only" allow-h2c=true` |
+> | `proto="grpcs"` and `tls-sni="<name>"` | gRPC over TLS | `proto="h2-only" tls-sni="<name>"` |
+>
+> Both are strict, like `h2-only`: a backend that does not speak HTTP/2 fails with a 502. `proto="grpc"` cannot be combined with
+> `tls-sni`, and `proto="grpcs"` requires it and cannot be combined with `allow-h2c`. The longer spellings stay valid.
 
 > #### `h2-only` is strict — it will not silently fall back to HTTP/1.1
 >

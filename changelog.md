@@ -42,6 +42,8 @@
 
 #### Upstream connections
 
+- **gRPC is declared, not detected.** On a connector, `proto="grpc"` (cleartext HTTP/2) and `proto="grpcs"` (HTTP/2 over TLS, with `tls-sni`) say which transport the backend uses; they are equivalent to the existing `proto="h2-only"` spellings, which remain valid. On a route, `allowed-protocols "grpc"` (cleartext clients), `"grpcs"` (TLS clients) or both declare a gRPC route; they imply `POST` and HTTP/2 (so `allowed-methods` can be omitted) and require every connector to be HTTP/2 only. Flow refuses a client on the wrong transport: `426` for a cleartext client on a `grpcs` route, `400` for TLS on a `grpc` route or for HTTP/1.1. See [Non-REST Protocols](non-rest-protocols.md#grpc).
+
 - **[Circuit breaking](configuration.md#circuit-breaking)** — passive per-backend failure detection on real request outcomes. Add `circuit-breaker { … }` inside any `load-balance` block. Three-state machine (`Closed` → `Open` → `HalfOpen`) with configurable error rate threshold, time window, cooldown period, and probe count. Two window strategies: `"SlidingWindow"` (exact, default) and `"TimeBuckets"` (fixed-memory, for high-traffic routes). Fail-open when all backends are tripped. Compatible with `health-check "Active"`.
 
 - **[Active upstream health checking](configuration.md#health-checking)** — periodic HTTP probes per backend. Enable with `health-check "Active"` in any `load-balance` block. Configurable probe path, interval, timeout, and thresholds for marking unhealthy and recovering. Fail-open: when all backends are unhealthy, requests route anyway rather than failing.
