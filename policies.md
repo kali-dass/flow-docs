@@ -18,6 +18,7 @@ Flow has three kinds of policy attachment:
 | Authentication | [Token authentication](policies/token-auth.md) | ✓ | — | — | Verify a bearer/cookie/query token — JWT (JWKS or static key) or opaque token via RFC 7662 introspection |
 | Security | [IP restriction](policies/ip-restriction.md) | ✓ | — | — | Allow or block requests by source IP (CIDR ranges) |
 | Traffic Control | [Rate limiting](policies/rate-limiting.md) | ✓ | — | — | Cap request rates — per IP, per client, per URI, or per custom dimension |
+| Traffic Control | [Request size limit](policies/request-size-limit.md) | ✓ | — | — | Reject request bodies over a size limit (`413`), by declared length or as the body streams |
 | Traffic Control | [Request termination](policies/request-termination.md) | ✓ | — | — | Return a fixed response immediately without calling the upstream (maintenance mode, deprecated endpoints, kill switch) |
 | Transformation | [Upsert header](policies/upsert-header.md) | — | ✓ | ✓ | Set a header on the upstream request or the response |
 | Transformation | [Remove header](policies/remove-header-key-regex.md) | — | ✓ | ✓ | Strip headers whose name matches a regex pattern |

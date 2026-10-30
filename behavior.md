@@ -50,7 +50,7 @@ When Flow rejects a request itself, it answers with a short JSON body and `conte
 | Rate-limit key missing from the request (`missing-key="reject"`) | the configured status, 400 by default | `bad_request` (`unauthorized` for 401, `forbidden` for 403) | |
 | Authentication service unreachable | 503 | `service_unavailable` | |
 
-Policies that return a configured status, such as [IP restriction](policies/ip-restriction.md) and [Request termination](policies/request-termination.md), send the status and message you set. Responses that come from your backends pass through unchanged.
+Policies that return a configured status, such as [IP restriction](policies/ip-restriction.md), [Request termination](policies/request-termination.md) and [Request size limit](policies/request-size-limit.md), send the status and message you set. Responses that come from your backends pass through unchanged.
 
 These are plain HTTP errors, with JSON bodies. On a route declared `grpc` or `grpcs`, and for a gRPC call that matches no route, Flow answers in gRPC instead, with a `grpc-status` the client can read. See [Errors Flow produces on a gRPC route](non-rest-protocols.md#errors-flow-produces-on-a-grpc-route).
 
@@ -110,9 +110,9 @@ Flow streams request and response bodies and does not hold whole messages in mem
 - If a client sends slowly, Flow waits; it does not read ahead.
 - If a backend closes the connection mid-stream, the client gets a partial response or a timeout.
 - Because bodies are not buffered, no policy inspects them. Policies work on the request line, headers, and the identity of the caller.
-- Flow places no size limit on request or response bodies.
+- Flow places no size limit on response bodies, and none on request bodies unless you add [Request size limit](policies/request-size-limit.md) to a route.
 
-> **Planned:** request and response size limits. See [Roadmap](roadmap.md#traffic-control).
+> **Planned:** response size limits. See [Roadmap](roadmap.md#traffic-control).
 
 ## Request transformation
 

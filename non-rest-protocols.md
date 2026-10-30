@@ -334,7 +334,7 @@ Notes:
 
 ### Policies on gRPC
 
-Flow's policies (auth, rate limiting, header manipulation) apply to gRPC requests. One note: gRPC metadata (key/value pairs analogous to HTTP headers) arrives as HTTP/2 headers — the `upsert-header` and `remove-header-key-regex` policies work on them directly. gRPC trailers (trailing metadata sent after the response body) are passed through unmodified; policies do not run on trailers.
+Flow's policies (auth, rate limiting, header manipulation) apply to gRPC requests, with one exception: [Request size limit](policies/request-size-limit.md) is not accepted on a gRPC route, because a cap on total bytes would cut long streaming calls. Flow refuses to start with it on a route declared `grpc` or `grpcs`. One note: gRPC metadata (key/value pairs analogous to HTTP headers) arrives as HTTP/2 headers — the `upsert-header` and `remove-header-key-regex` policies work on them directly. gRPC trailers (trailing metadata sent after the response body) are passed through unmodified; policies do not run on trailers.
 
 ---
 
@@ -350,7 +350,7 @@ What this means in practice:
 
 - The HTTP/1.1 upgrade handshake (`GET` + `Connection: Upgrade` + `Upgrade: websocket`) passes through.
 - After the 101 response, the connection operates as a raw bidirectional byte stream.
-- Flow's request/response policies (`upsert-header`, `rate-limit`, etc.) run on the initial HTTP handshake, not on individual WebSocket frames.
+- Flow's request/response policies (`upsert-header`, `rate-limit`, etc.) run on the initial HTTP handshake, not on individual WebSocket frames. For the same reason, [Request size limit](policies/request-size-limit.md) applies to the upgrade request only and never counts what is sent after the `101`.
 - No subprotocol negotiation, ping/pong injection, or frame-level inspection.
 
 ### Required timeout configuration

@@ -6,6 +6,8 @@ Short answers, with a link to the page that has the detail. For what is availabl
 
 **Can Flow proxy gRPC?** Yes. gRPC over cleartext HTTP/2 or TLS, on either hop between the client, Flow and the backend, including streaming calls, is proxied end to end. See [gRPC](non-rest-protocols.md#grpc).
 
+**Can Flow limit the size of uploads?** Yes. Add the `request-size-limit` policy to a route and requests with a larger body get `413`. See [Request size limit](policies/request-size-limit.md).
+
 **Can Flow check whether a backend is healthy?** Yes. Set `health-check "Active"` in the `load-balance` block and Flow probes each backend and removes unhealthy ones from the pool. See [Health checking](policies/health-checking.md).
 
 **Do rate limits apply across several Flow instances?** Each instance keeps its own limits. See [How Flow Behaves](behavior.md#rate-limiting).
