@@ -158,9 +158,9 @@ Stream series for a route appear when its first stream of that kind starts; rout
 
 | Metric | Type | Labels | What it measures |
 |---|---|---|---|
-| `flow_size_limit_blocked_total` | counter | `service`, `route`, `direction`, `action` | Responses blocked by [Response size limit](policies/response-size-limit.md). `direction` is `response`. `action` is `refused` (the backend declared a size over the limit, so Flow answered `502` before sending any header) or `truncated` (the body grew past the limit and the transfer was cut off). |
+| `flow_size_limit_blocked_total` | counter | `service`, `route`, `direction`, `action` | Requests and responses blocked by a size limit. `direction` is `request` ([Request size limit](policies/request-size-limit.md)) or `response` ([Response size limit](policies/response-size-limit.md)). `action` is `refused` (stopped before any body was passed on: a declared `Content-Length` over the limit, answered `413` for a request or `502` for a response) or `truncated` (the body crossed the limit while it was moving and was cut off). |
 
-A refusal also counts in `flow_requests_total` as `5xx` with `source="flow"`. A cut response keeps the status the client received (usually `2xx`), which is why this metric exists: alert on a rise to catch a client pulling more data than normal. The client's address and identity are in the error log line for each block, not in the labels. A series appears the first time that combination occurs.
+A refusal also counts in `flow_requests_total` with `source="flow"`: `5xx` for a response, `4xx` for a request. A cut response keeps the status the client received (usually `2xx`), which is why this metric exists: alert on a rise to catch a client pulling more data than normal. The client's address and identity are in the error log line for each block, not in the labels. A series appears the first time that combination occurs.
 
 ### Optional groups
 
@@ -438,16 +438,17 @@ sum by (route) (increase(flow_size_limit_blocked_total[1h])) > 0
 
 **How many requests were too big?**
 
-Requests refused by [Request size limit](policies/request-size-limit.md) are answered `413` by Flow, so they appear as Flow-produced `4xx`. They are not separated from other Flow-produced `4xx` today:
+Requests refused by [Request size limit](policies/request-size-limit.md) are counted, and the two outcomes are separate:
 
 ```promql
-# All requests Flow rejected with a 4xx (size limit, authentication, rate limit, IP restriction, ...)
-sum by (route) (rate(flow_requests_total{status_class="4xx", source="flow"}[5m]))
+# Blocked requests per second, by route and outcome
+sum by (service, route, action) (rate(flow_size_limit_blocked_total{direction="request"}[5m]))
+
+# Alert: any block in the last hour, requests and responses together
+sum by (route, direction) (increase(flow_size_limit_blocked_total[1h])) > 0
 ```
 
-On a route where the size limit is the only policy that can reject, this is the count. Otherwise each rejection from a declared `Content-Length` also writes a warning to the application log (`request-size-limit: Content-Length over the limit`).
-
-> **Planned:** request-side counts in `flow_size_limit_blocked_total{direction="request"}`. See [Roadmap](roadmap.md#observability).
+`action="refused"` means the request declared a `Content-Length` over the limit and was answered `413` before the backend was contacted. `action="truncated"` means the body crossed the limit while it was arriving; the client got `413` and the backend saw an incomplete request. Both are also Flow-produced `4xx` in `flow_requests_total`. A malformed `Content-Length` is a `400` and is not a size block. The error log names the client address and identity for each block.
 
 **How many requests failed authentication?**
 
@@ -539,6 +540,6 @@ flow_dns_resolved_addresses == 0
 These are not exposed today:
 
 - Per-backend state (healthy, unhealthy, circuit open) and circuit-breaker state as metrics.
-- Per-policy metrics (calls, outcomes and duration for individual policies, enabled per policy instance), cache hit/miss counters, authentication failures as their own count, and request-size rejections as their own count (response-size blocks are counted; see [Size limits](#size-limits)).
+- Per-policy metrics (calls, outcomes and duration for individual policies, enabled per policy instance), cache hit/miss counters, and authentication failures as their own count. Size-limit blocks, request and response, are counted; see [Size limits](#size-limits).
 
 > **Planned:** per-backend and per-policy metrics, and TLS and authentication for the endpoint. See [Roadmap](roadmap.md#observability).

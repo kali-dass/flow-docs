@@ -14,7 +14,8 @@ path-control {
 
 | Option | Required | Description |
 |---|---|---|
-| `max-body-size` | yes | The largest request body accepted. A whole number of bytes (`1048576`) or a number with a suffix: `KB`, `MB` or `GB`, case-insensitive. Suffixes are binary: `1KB` is 1,024 bytes and `1MB` is 1,048,576 bytes. Must be greater than 0. |
+| `max-body-size` | yes | The largest request body accepted. A whole number of bytes (`1048576`) or a number with a suffix: `KB`, `MB` or `GB`, case-insensitive. Suffixes are binary: `1KB` is 1,024 bytes and `1MB` is 1,048,576 bytes. Must be greater than 0. There is no "unlimited" value; to apply no limit, leave the policy off. |
+| `override-service-limit` | no | `true` on a route-level declaration makes the route's `max-body-size` replace the service-level one instead of applying together with it. See [Service and route limits](#service-and-route-limits). Default `false`. |
 
 A body of exactly `max-body-size` bytes is accepted; one byte more is rejected. The limit applies to the bytes on the wire, so a compressed body counts at its compressed size. Flow does not decompress request bodies.
 
@@ -42,6 +43,16 @@ Flow answers `413` with a JSON body:
 - **WebSocket.** The upgrade request is limited as usual. Once the connection is upgraded, nothing sent over it is counted, so a long WebSocket session is never cut by this policy. See [Non-REST Protocols](../non-rest-protocols.md).
 - **Responses.** The limit applies to request bodies only. Limit responses with [Response size limit](response-size-limit.md). A request that starts a streaming response is limited like any other request.
 - **Long uploads.** A client that streams one very long request (for example continuous log shipping over a single request) is cut when the total passes the limit. Leave the policy off such a route, or set a limit large enough for it.
+
+## Service and route limits
+
+The policy can be set on a whole service, on a single route, or both.
+
+- **Service-level.** Applies to every route in the service.
+- **Route-level.** Applies to that route in addition to the service-level one. When both apply, the lower limit blocks: a route can never silently raise the service limit.
+- **Route-level with `override-service-limit=true`.** The route's `max-body-size` replaces the service-level one for that route, higher or lower. This is how an upload route gets a larger limit while the rest of the service stays strict.
+
+Flow refuses to start when `override-service-limit=true` is set on a service-level declaration, or on a route in a service that has no service-level `request-size-limit` (there is nothing to override). Flow logs each overriding route at startup, so raised limits are easy to find in a review. [Response size limit](response-size-limit.md) works the same way.
 
 ## Placement
 
@@ -81,4 +92,6 @@ services {
 
 ## Observability
 
-A rejection counts in `flow_requests_total` with `status_class="4xx"` and `source="flow"`, so it is separate from errors the backend returned. See [Metrics](../metrics.md).
+- **Metric.** `flow_size_limit_blocked_total{service, route, direction="request", action}` counts rejections. `action` is `refused` (the declared `Content-Length` was over the limit, so the backend was never contacted) or `truncated` (the body crossed the limit while it was arriving, so the backend saw an incomplete request). A malformed `Content-Length` (`400`) is not a size rejection and is not counted here. See [Metrics](../metrics.md#size-limits).
+- **Request counts.** A rejection also counts in `flow_requests_total` with `status_class="4xx"` and `source="flow"`, so it is separate from errors the backend returned.
+- **Log.** Each rejection writes an error-level line with the client IP, the client identity when known, the route, the limit and where it came from (route or service), the declared or counted size, and the correlation ID.

@@ -113,6 +113,6 @@ services {
 
 Every block is visible; a limit that silently looks like a normal `200` would hide the very behavior it exists to stop.
 
-- **Metric.** `flow_size_limit_blocked_total{service, route, direction="response", action}` counts blocks. `action` is `refused` (before any header was sent) or `truncated` (cut part-way). See [Metrics](../metrics.md#size-limits).
+- **Metric.** `flow_size_limit_blocked_total{service, route, direction="response", action}` counts blocks (the same counter [Request size limit](request-size-limit.md) uses with `direction="request"`). `action` is `refused` (before any header was sent) or `truncated` (cut part-way). See [Metrics](../metrics.md#size-limits).
 - **Request counts.** A refusal counts in `flow_requests_total` as `5xx` with `source="flow"`. A cut response counts with the status the client received, usually `2xx`, so use the metric above to see it.
 - **Log.** Each block writes an error-level line with the client IP, the client identity when known, the route, the limit and where it came from (route or service), the declared or counted size, and the correlation ID.
