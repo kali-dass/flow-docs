@@ -111,7 +111,7 @@ All names start with `flow_`. Durations are in **seconds** (Flow measures in mic
 | `route` | The route's `name`, or `unmatched` for requests that matched no route (see below). |
 | `method` | `GET`, `POST`, `PUT`, `DELETE`, `PATCH`, `HEAD`, `OPTIONS`, `CONNECT`, `TRACE`, or `other`. |
 | `status_class` | `1xx`, `2xx`, `3xx`, `4xx`, `5xx`, or `none` (no response was written, for example the client disconnected first). |
-| `source` | Who produced the response the client received. `upstream`: a backend answered (any status, including a backend 5xx). `flow`: Flow answered without an upstream response: a policy rejection (rate limit, authentication, IP restriction), `405`/`501`, no matching route, [request termination](policies/request-termination.md), a cache hit, or a failed upstream connection. |
+| `source` | Who produced the response the client received. `upstream`: a backend answered (any status, including a backend 5xx). `flow`: Flow answered without an upstream response: a policy rejection (rate limit, authentication, IP restriction), `405`/`501`, no matching route, [request termination](policies/request-termination.md), a cache hit, a failed upstream connection, or a response refused by [Response size limit](policies/response-size-limit.md). |
 
 Every route has a required, unique-per-service [`name`](configuration.md#name-required), which is what the `route` label carries. Requests that match no route (and `405`/`501` responses, which are decided before a route is chosen) are counted under `route="unmatched"` for their service. `unmatched` is a reserved name and cannot be used for a route.
 
@@ -153,6 +153,14 @@ A stream still counts in `flow_requests_total` and the response-header, upstream
 `end` values: `normal` (clean finish), `client` (the client closed or failed), `upstream` (the backend closed or failed), `timeout` (a read or write timeout fired, such as `downstream-read-timeout`), `flow` (an internal error). A WebSocket the client closes cleanly is reported as `normal`; only abrupt closes and failures are attributed to `client` or `upstream`.
 
 Stream series for a route appear when its first stream of that kind starts; routes that never stream export none.
+
+### Size limits
+
+| Metric | Type | Labels | What it measures |
+|---|---|---|---|
+| `flow_size_limit_blocked_total` | counter | `service`, `route`, `direction`, `action` | Responses blocked by [Response size limit](policies/response-size-limit.md). `direction` is `response`. `action` is `refused` (the backend declared a size over the limit, so Flow answered `502` before sending any header) or `truncated` (the body grew past the limit and the transfer was cut off). |
+
+A refusal also counts in `flow_requests_total` as `5xx` with `source="flow"`. A cut response keeps the status the client received (usually `2xx`), which is why this metric exists: alert on a rise to catch a client pulling more data than normal. The client's address and identity are in the error log line for each block, not in the labels. A series appears the first time that combination occurs.
 
 ### Optional groups
 

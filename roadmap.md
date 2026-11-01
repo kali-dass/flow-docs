@@ -89,7 +89,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 | Redirects (HTTPS enforcement, path migration) | Planned | |
 | CORS handling | Planned | |
 | Request size limit (HTTP/1.1 and HTTP/2 bodies) | Available | [Request size limit](policies/request-size-limit.md) |
-| Response size limit | Planned | |
+| Response size limit | Available | [Response size limit](policies/response-size-limit.md) |
 | gRPC and WebSocket message size limits | Planned | |
 
 ## Transformation and caching

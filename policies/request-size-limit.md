@@ -40,7 +40,7 @@ Flow answers `413` with a JSON body:
 
 - **gRPC routes.** A gRPC call is a stream of messages, so a total-bytes cap would cut healthy long calls. Flow refuses to start if `request-size-limit` is set on a route declared `allowed-protocols "grpc"` or `"grpcs"` (on the route or inherited from the service). See [Non-REST Protocols](../non-rest-protocols.md#grpc).
 - **WebSocket.** The upgrade request is limited as usual. Once the connection is upgraded, nothing sent over it is counted, so a long WebSocket session is never cut by this policy. See [Non-REST Protocols](../non-rest-protocols.md).
-- **Responses.** The limit applies to request bodies only. Streaming responses (SSE, newline-delimited JSON) are unaffected; a request that starts one is limited like any other.
+- **Responses.** The limit applies to request bodies only. Limit responses with [Response size limit](response-size-limit.md). A request that starts a streaming response is limited like any other request.
 - **Long uploads.** A client that streams one very long request (for example continuous log shipping over a single request) is cut when the total passes the limit. Leave the policy off such a route, or set a limit large enough for it.
 
 ## Placement

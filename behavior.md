@@ -110,9 +110,7 @@ Flow streams request and response bodies and does not hold whole messages in mem
 - If a client sends slowly, Flow waits; it does not read ahead.
 - If a backend closes the connection mid-stream, the client gets a partial response or a timeout.
 - Because bodies are not buffered, no policy inspects them. Policies work on the request line, headers, and the identity of the caller.
-- Flow places no size limit on response bodies, and none on request bodies unless you add [Request size limit](policies/request-size-limit.md) to a route.
-
-> **Planned:** response size limits. See [Roadmap](roadmap.md#traffic-control).
+- Flow places no size limit on request or response bodies unless you add [Request size limit](policies/request-size-limit.md) or [Response size limit](policies/response-size-limit.md) to a route.
 
 ## Request transformation
 
