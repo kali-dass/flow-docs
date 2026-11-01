@@ -51,7 +51,7 @@ Every response from a cached route includes `X-Cache-Status`:
 | `MISS` | Response from backend — now stored in cache |
 | `BYPASS` | Cache bypassed for this request (see [Bypass conditions](#bypass-conditions)) |
 
-An `Age` header is injected on `HIT`, indicating how many seconds ago Flow received this
+A `HIT` carries a `Content-Length` for the stored body (whether or not the backend sent one, since a backend may stream a response in chunks), so a client can reuse its connection after a hit. An `Age` header is injected on `HIT`, indicating how many seconds ago Flow received this
 response from the upstream. On `MISS` and `BYPASS` there is no `Age` header — any `Age` the
 upstream sent is stripped before storage (see [Headers stripped before storage](#headers-stripped-before-storage)).
 
