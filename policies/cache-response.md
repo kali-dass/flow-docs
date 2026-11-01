@@ -88,6 +88,23 @@ Flow does not **store** a response when:
 - The response carries `Vary: *`
 - The response `Content-Type` is not in `cache-content-types` (when that option is set)
 
+## Responses to think about before caching
+
+`cache-response` is a choice you make for a route. Flow stores any response that passes the rules above; it does not look at what the response is for. A useful test before you turn it on: would two different callers be happy to receive the same bytes for `ttl-secs`? Some kinds of response need care:
+
+| Response | What happens when it is cached | What to do |
+|---|---|---|
+| **Live streams: Server-Sent Events** (`text/event-stream`) | A server-sent stream that ends within `max-body-bytes` is stored, and a hit replays every stored event at once, so the live timing is lost. A browser's `EventSource` reconnects when a stream ends, so it receives the same stored events again on every reconnect until the entry expires. `Last-Event-ID` is not part of the cache key, so a client resuming after event 40 gets the copy from event 1. Your backend never sees the clients served from the cache. A backend that sends `Cache-Control: no-cache` is never stored. | Do not put `cache-response` on a route that serves live streams. On a route that mixes streams with ordinary responses, allow only the types you want: `cache-content-types "application/json"`. |
+| **Newline-delimited JSON** (NDJSON, JSON Lines) | Cached like any other body. A finished export replays correctly. A feed whose lines change between calls is replayed as the stored snapshot until the entry expires. | Cache routes whose answer is the same for `ttl-secs`. Leave live feeds uncached. |
+| **Per-user or per-tenant responses** | Without `identity-from`, the first caller's response is served to everyone. | Set [`identity-from`](#identity-isolation), and put [token authentication](token-auth.md) on the route. |
+| **Responses that differ by request header** (language, tenant, format) | A `Vary` from the backend is honored. Without one, callers share one entry. | Add the header to `key-headers`, or have the backend send `Vary`. |
+| **Methods other than `GET` and `HEAD`** | The cache key does not include the request body, so different `POST` bodies to one URL share an entry and every caller gets the first answer. | Keep the default `allowed-methods`. Do not add `POST` for an API whose answer depends on the body, such as search or an LLM completion. |
+| **gRPC** | The key ignores the request message and the trailers that carry `grpc-status` are not stored, so every call would receive the first response. | Do not put `cache-response` on a gRPC route. |
+| **Large or open-ended responses** | A response larger than `max-body-bytes` passes through uncached every time. While a response is arriving, a miss holds up to `max-body-bytes` in memory. | Set `max-body-bytes` for what you want cached, not for the largest response you serve. |
+| **Fast-changing data** (prices, status, counters) | Callers see data up to `ttl-secs` old. | Lower `ttl-secs`, or leave the route uncached. |
+
+If a route needs both cached and uncached responses, use `cache-content-types` to name the types to store. A response over a [Response size limit](response-size-limit.md) is never stored, so a hit is always served from a response that passed the limit.
+
 ## Headers stripped before storage
 
 Hop-by-hop headers are stripped and never replayed: `Transfer-Encoding`, `Connection`,
