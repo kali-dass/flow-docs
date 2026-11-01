@@ -108,7 +108,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 |---|---|---|
 | Timing headers | Available | [Timing header](policies/timing-header.md) |
 | Prometheus metrics endpoint | Preview | [Metrics](metrics.md) |
-| Per-backend and per-policy metrics | Planned | |
+| Per-backend and per-policy metrics | Planned | Includes cache hit and miss counters, authentication failures, and request-side size-limit counts |
 | TLS and authentication for the metrics endpoint | Planned | |
 | Structured access logs with external sinks | Planned | |
 | OpenTelemetry tracing | Planned | |

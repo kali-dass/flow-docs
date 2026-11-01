@@ -263,8 +263,10 @@ To catch these cases, alert on `5xx` with `source="flow"` rather than on overhea
 
 ```promql
 # 5xx that Flow produced (rejections, failed connections, backend that never answered)
-sum by (service, route) (rate(flow_requests_total{status_class="5xx", source="flow"}[5m]))
+sum by (service, route) (rate(flow_requests_total{status_class="5xx", source="flow", route!="unmatched"}[5m]))
 ```
+
+The query leaves out `route="unmatched"`: a request that matches no route is also a Flow-produced `5xx` (`502`), but it says nothing about your backends, and scanners can make it noisy. Count those separately; see [How much traffic hits no route?](#security-data).
 
 ---
 
@@ -283,6 +285,215 @@ The overhead of recording is small: the request path performs only atomic operat
 
 ---
 
+## Answering common questions
+
+The questions below are grouped by purpose. Each says what to query, and where a number cannot be isolated today, the closest signal and why it is not exact.
+
+### Operational data
+
+**How long did Flow take?**
+
+Flow's own time is `flow_overhead_duration_seconds`. It is what is left of the request after the backend, the client transfer and connection setup are taken out, so it is the figure to watch for what Flow adds. The four stage histograms add up to the whole request: `overhead + connect + upstream + client_transfer = flow_request_duration_seconds` (see [Where the time goes](#where-the-time-goes-and-where-it-can-mislead)).
+
+```promql
+# Average seconds per request spent in each stage, per route
+sum by (route) (rate(flow_overhead_duration_seconds_sum[5m]))        / sum by (route) (rate(flow_overhead_duration_seconds_count[5m]))
+sum by (route) (rate(flow_upstream_duration_seconds_sum[5m]))        / sum by (route) (rate(flow_upstream_duration_seconds_count[5m]))
+sum by (route) (rate(flow_client_transfer_duration_seconds_sum[5m])) / sum by (route) (rate(flow_client_transfer_duration_seconds_count[5m]))
+sum by (route) (rate(flow_upstream_connect_duration_seconds_sum[5m])) / sum by (route) (rate(flow_upstream_connect_duration_seconds_count[5m]))
+
+# The whole request, Flow's window
+histogram_quantile(0.99, sum by (le, route) (rate(flow_request_duration_seconds_bucket[5m])))
+```
+
+For one request instead of an average, add the [timing header](policies/timing-header.md): `X-Flow-Duration-Us` is Flow's time and `X-Upstream-Duration-Us` the backend's, both in microseconds. Streams are not in `flow_request_duration_seconds`; see [Streams](#streams-sse-and-websocket).
+
+**How many requests were served from the cache, and how many were not?**
+
+There is no hit or miss counter. The closest signal uses who produced the response: a cache hit is answered by Flow (`source="flow"`), a miss or an uncacheable response comes from the backend (`source="upstream"`). On a route that has `cache-response` and no other policy that answers `2xx` itself (such as [request termination](policies/request-termination.md)), this gives an estimate:
+
+```promql
+# Estimated hits and backend requests per second on one cached route
+sum(rate(flow_requests_total{route="catalog", source="flow",     status_class="2xx"}[5m]))
+sum(rate(flow_requests_total{route="catalog", source="upstream"}[5m]))
+
+# Estimated hit ratio
+sum(rate(flow_requests_total{route="catalog", source="flow", status_class="2xx"}[5m]))
+  / sum(rate(flow_requests_total{route="catalog", status_class="2xx"}[5m]))
+```
+
+It counts every uncacheable response (for example a `POST`) as a non-hit, so read it as a lower bound on the hit ratio. For the exact outcome of a single request, read the `X-Cache-Status` response header (`HIT`, `MISS` or `BYPASS`); see [Cache response](policies/cache-response.md).
+
+> **Planned:** cache hit and miss counters. See [Roadmap](roadmap.md#observability).
+
+**How much traffic does each route get, and is it failing?**
+
+```promql
+# Requests per second, by route and method
+sum by (service, route, method) (rate(flow_requests_total[5m]))
+
+# Share of responses that are 5xx, by route
+sum by (route) (rate(flow_requests_total{status_class="5xx"}[5m]))
+  / sum by (route) (rate(flow_requests_total[5m]))
+
+# Is it the backend or Flow? 5xx by who produced the response (leave out requests that matched no route)
+sum by (route, source) (rate(flow_requests_total{status_class="5xx", route!="unmatched"}[5m]))
+```
+
+`source="upstream"` is a backend that answered with an error. `source="flow"` is a failed connection, a backend that never answered, or a Flow rejection. Requests that matched no route are counted under `route="unmatched"`; leave them out of backend-failure alerts, as above.
+
+**Is it Flow, the backend or the client that is slow?**
+
+| What you see | Metric to check | Likely place |
+|---|---|---|
+| Slow first byte | `flow_response_header_duration_seconds` | Backend or Flow, then split below |
+| High `flow_upstream_duration_seconds` | Backend round trip until headers | Your backend |
+| High `flow_overhead_duration_seconds` | What is left after the other stages | Flow's own work, or a backend that never answered (a failed or timed-out request lands here) |
+| High `flow_client_transfer_duration_seconds` | Time to send the body to the client | Large downloads or slow clients |
+| High `flow_upstream_connect_duration_seconds{reused="false"}` | New backend connection | Backend or network handshake cost |
+
+Compare the stages for the same route over the same window. The reasoning behind each row is in [Where the time goes](#where-the-time-goes-and-where-it-can-mislead).
+
+**Is Flow reusing backend connections?**
+
+```promql
+# Share of requests that had to open a new backend connection
+sum by (route) (rate(flow_upstream_connect_duration_seconds_count{reused="false"}[5m]))
+  / sum by (route) (rate(flow_upstream_connect_duration_seconds_count[5m]))
+
+# Average time to open a new backend connection, in seconds
+sum by (route) (rate(flow_upstream_connect_duration_seconds_sum{reused="false"}[5m]))
+  / sum by (route) (rate(flow_upstream_connect_duration_seconds_count{reused="false"}[5m]))
+```
+
+A high share of new connections means connection churn and extra handshake time on every such request. A failed connection records no connect time, so it does not appear here; it shows as `5xx` with `source="flow"`.
+
+**How loaded is Flow right now?**
+
+```promql
+# Requests being handled
+flow_in_flight_requests
+
+# Open streams, by route and kind
+sum by (route, kind) (flow_active_streams)
+
+# Body bytes per second in and out, by route (needs the bandwidth group)
+sum by (route, direction) (rate(flow_bandwidth_bytes_total[5m]))
+```
+
+`flow_in_flight_requests` returns to 0 when idle. A value that keeps growing while traffic is steady means requests are not finishing, usually a slow backend.
+
+**How are streams behaving?**
+
+```promql
+# Why streams ended, per route
+sum by (route, end) (rate(flow_streams_total[5m]))
+
+# How long finished streams lasted (p50)
+histogram_quantile(0.5, sum by (le, route, kind) (rate(flow_stream_duration_seconds_bucket[1h])))
+```
+
+`end="client"` is the client closing or failing, `end="upstream"` is the backend closing or failing, `end="timeout"` is a read or write timeout firing. A rise in `upstream` points at the backend; a rise in `timeout` at a timeout setting that is too short for the stream; see [Timeouts](configuration.md#timeouts-at-a-glance).
+
+**Are backend names resolving?** (needs the `dns` group)
+
+```promql
+# A backend name with no addresses at all
+flow_dns_resolved_addresses == 0
+
+# Last successful refresh older than 5 minutes
+time() - flow_dns_last_success_timestamp_seconds > 300
+
+# Refresh failures by kind
+sum by (kind) (rate(flow_dns_refresh_failures_total[5m]))
+```
+
+The failure kinds are `empty_answer`, `nxdomain` and `transient`. Flow keeps the last good addresses through transient failures, so a stale timestamp with a non-zero address count means Flow is still serving, from old data.
+
+**Which version is running, and is recording healthy?**
+
+```promql
+# Versions across your instances (compare during an upgrade)
+count by (version) (flow_build_info)
+
+# Should always be 0
+increase(flow_metrics_errors_total[1h])
+```
+
+### Security data
+
+**How many responses were too big and cut off?**
+
+Every block by [Response size limit](policies/response-size-limit.md) is counted, and the two outcomes are separate:
+
+```promql
+# Blocked responses per second, by route and outcome
+sum by (service, route, action) (rate(flow_size_limit_blocked_total{direction="response"}[5m]))
+
+# Alert: any block in the last hour
+sum by (route) (increase(flow_size_limit_blocked_total[1h])) > 0
+```
+
+`action="refused"` means the backend declared a size over the limit and the client got a `502` before any data was sent. `action="truncated"` means the body grew past the limit and the transfer was cut off. A truncated response is counted in `flow_requests_total` with the status the client had already received (usually `2xx`), so this counter is the only place the cut is visible. A refusal also shows as `5xx` with `source="flow"`. The error log names the client address and identity for each block.
+
+**How many requests were too big?**
+
+Requests refused by [Request size limit](policies/request-size-limit.md) are answered `413` by Flow, so they appear as Flow-produced `4xx`. They are not separated from other Flow-produced `4xx` today:
+
+```promql
+# All requests Flow rejected with a 4xx (size limit, authentication, rate limit, IP restriction, ...)
+sum by (route) (rate(flow_requests_total{status_class="4xx", source="flow"}[5m]))
+```
+
+On a route where the size limit is the only policy that can reject, this is the count. Otherwise each rejection from a declared `Content-Length` also writes a warning to the application log (`request-size-limit: Content-Length over the limit`).
+
+> **Planned:** request-side counts in `flow_size_limit_blocked_total{direction="request"}`. See [Roadmap](roadmap.md#observability).
+
+**How many requests failed authentication?**
+
+A rejection by [Token authentication](policies/token-auth.md) is a Flow-produced `401` or `403`. Metrics carry the status class, not the code, so the closest signal is again Flow-produced `4xx`:
+
+```promql
+sum by (route) (rate(flow_requests_total{status_class="4xx", source="flow"}[5m]))
+```
+
+This also counts every other rejection Flow makes (rate limit `429`, IP restriction, request size, no matching route), so it is exact only on a route whose sole rejecting policy is token authentication. A `401` from your own backend is `source="upstream"` and is not in it. Some rejection reasons (a malformed token, an unrecognized issuer) are written to the application log at `debug` level.
+
+> **Planned:** per-policy counters for rejections, including authentication failures. See [Roadmap](roadmap.md#observability).
+
+**Are clients sending bad requests?**
+
+A `4xx` is Flow or your backend refusing a request. Who produced it tells you where to look:
+
+```promql
+# 4xx per second, by route and who answered
+sum by (route, source) (rate(flow_requests_total{status_class="4xx"}[5m]))
+
+# Share of each route's requests answered with a 4xx
+sum by (route) (rate(flow_requests_total{status_class="4xx"}[5m]))
+  / sum by (route) (rate(flow_requests_total[5m]))
+```
+
+- `source="upstream"`: your backend judged the request bad (validation, not found, its own authentication). Look at the backend's logs.
+- `source="flow"`: a Flow policy rejected it (authentication, rate limit `429`, IP restriction, request size). The cause is not separated today; see the questions above.
+
+A sudden rise on one route is a misbehaving or abusive client; a rise across every route after a release is more likely a change in what clients send. Break by `method` to see whether it is reads or writes. The metrics never carry a client address or path, so identifying the client needs the application log or your own access logs.
+
+**How much traffic hits no route?**
+
+```promql
+# Requests that matched no route (and 405/501 responses), per second
+sum by (service, status_class) (rate(flow_requests_total{route="unmatched"}[5m]))
+
+# Share of a service's traffic that matched nothing
+sum by (service) (rate(flow_requests_total{route="unmatched"}[5m]))
+  / sum by (service) (rate(flow_requests_total[5m]))
+```
+
+A request that matches no route is answered `502` (`no_route_matched`) by Flow, and `405` and `501` responses, which are decided before a route is chosen, are counted in the same place. A steady trickle is normal on an internet-facing listener (scanners looking for common paths). A jump usually means a client calling a path that was removed or renamed, a misconfigured upstream caller, or a route that failed to load. The metric cannot say which path; each such request writes a warning to the application log with the path, which does.
+
+---
+
 ## Useful queries
 
 ```promql
@@ -293,8 +504,8 @@ sum by (service, route) (rate(flow_requests_total[5m]))
 sum(rate(flow_requests_total{status_class="5xx"}[5m]))
   / sum(rate(flow_requests_total[5m]))
 
-# 5xx that the backend produced vs 5xx that Flow produced
-sum by (source) (rate(flow_requests_total{status_class="5xx"}[5m]))
+# 5xx that the backend produced vs 5xx that Flow produced (requests that matched no route left out)
+sum by (source) (rate(flow_requests_total{status_class="5xx", route!="unmatched"}[5m]))
 
 # p99 time Flow itself adds, per route
 histogram_quantile(0.99,
@@ -328,6 +539,6 @@ flow_dns_resolved_addresses == 0
 These are not exposed today:
 
 - Per-backend state (healthy, unhealthy, circuit open) and circuit-breaker state as metrics.
-- Per-policy metrics (calls, outcomes and duration for individual policies, enabled per policy instance), and cache hit/miss counters.
+- Per-policy metrics (calls, outcomes and duration for individual policies, enabled per policy instance), cache hit/miss counters, authentication failures as their own count, and request-size rejections as their own count (response-size blocks are counted; see [Size limits](#size-limits)).
 
 > **Planned:** per-backend and per-policy metrics, and TLS and authentication for the endpoint. See [Roadmap](roadmap.md#observability).
