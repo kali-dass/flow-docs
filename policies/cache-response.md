@@ -99,7 +99,7 @@ Flow does not **store** a response when:
 | **Per-user or per-tenant responses** | Without `identity-from`, the first caller's response is served to everyone. | Set [`identity-from`](#identity-isolation), and put [token authentication](token-auth.md) on the route. |
 | **Responses that differ by request header** (language, tenant, format) | A `Vary` from the backend is honored. Without one, callers share one entry. | Add the header to `key-headers`, or have the backend send `Vary`. |
 | **Methods other than `GET` and `HEAD`** | The cache key does not include the request body, so different `POST` bodies to one URL share an entry and every caller gets the first answer. | Keep the default `allowed-methods`. Do not add `POST` for an API whose answer depends on the body, such as search or an LLM completion. |
-| **gRPC** | The key ignores the request message and the trailers that carry `grpc-status` are not stored, so every call would receive the first response. | Do not put `cache-response` on a gRPC route. |
+| **gRPC** | The key ignores the request message and the trailers that carry `grpc-status` are not stored, so every call would receive the first response. | Flow refuses to start with `cache-response` on a route declared `allowed-protocols "grpc"` or `"grpcs"`, however the block is configured. |
 | **Large or open-ended responses** | A response larger than `max-body-bytes` passes through uncached every time. While a response is arriving, a miss holds up to `max-body-bytes` in memory. | Set `max-body-bytes` for what you want cached, not for the largest response you serve. |
 | **Fast-changing data** (prices, status, counters) | Callers see data up to `ttl-secs` old. | Lower `ttl-secs`, or leave the route uncached. |
 
