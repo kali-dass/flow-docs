@@ -129,11 +129,15 @@ Rate-limit headers are also stripped — any header whose name begins with `Rate
 `X-RateLimit-`, or `X-Rate-Limit-` reflects a per-connection, per-time-window value and would
 be misleading if replayed from a cached response.
 
+## Order of processing
+
+The cache is consulted **after** the request filters: a request is first checked by the service-level and route-level filters (authentication, IP restriction, rate limits, request size) and only a request that passes can be answered from the cache. A cached response is therefore never served to a caller that [Token authentication](token-auth.md), [IP restriction](ip-restriction.md) or a rate limit would have refused, and every hit counts against the rate limit.
+
 ## Identity isolation
 
 By default all requests share the same cache key space. Use `identity-from` to scope the cache
 key to a per-identity namespace — required when different authenticated users receive different
-upstream responses.
+upstream responses. The identity comes from [Token authentication](token-auth.md) on the same route, which runs before the cache is consulted.
 
 | `identity-from` value | Identity source |
 |---|---|

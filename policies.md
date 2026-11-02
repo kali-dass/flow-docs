@@ -183,6 +183,7 @@ For the `request-filters` phase, the full sequence for one incoming request is:
 3. **Service-level `request-filters`**, in the order they're written.
 4. **Route-level `request-filters`** (for the matched route only), in the order they're
    written — only reached if every service-level filter passed.
+5. **Response cache lookup** (the matched route's [`cache-response`](policies/cache-response.md), if it has one) — only reached if every filter above passed. A hit is answered here and the backend is not contacted; a miss continues to the backend.
 
 **This is a first-reject-wins chain.** The moment one filter rejects the request (or errors),
 every filter after it — in that phase, at that scope — is skipped entirely. It doesn't matter
