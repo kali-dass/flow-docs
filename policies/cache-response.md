@@ -137,7 +137,7 @@ The cache is consulted **after** the request filters: a request is first checked
 
 By default all requests share the same cache key space. Use `identity-from` to scope the cache
 key to a per-identity namespace — required when different authenticated users receive different
-upstream responses. The identity comes from [Token authentication](token-auth.md) on the same route, which runs before the cache is consulted.
+upstream responses. The identity comes from [Token authentication](token-auth.md) on the same route, which runs before the cache is consulted. Flow refuses to start when `identity-from` needs an identity (`client-id`, `tenant-id` or a claim) and the route has no `token-auth` in its request filters, at either the service or the route level.
 
 | `identity-from` value | Identity source |
 |---|---|

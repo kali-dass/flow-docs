@@ -193,6 +193,39 @@ never gets the chance to log, count, or otherwise act on that request.
 **Service level always runs before route level.** If the same kind of policy is attached both
 on the service and on a specific route, the service-level instance evaluates first.
 
+### A good default order
+
+For `request-filters`, from first to last:
+
+1. [`correlation-id`](policies/correlation-id.md), so that every later rejection is logged with the ID.
+2. Cheap checks that need only the request: [`ip-restriction`](policies/ip-restriction.md), and a [`rate-limit`](policies/rate-limiting.md) keyed by source IP, URI or header.
+3. [`token-auth`](policies/token-auth.md), which sets the caller's identity.
+4. Policies that need the identity or should not run for an unauthenticated caller: a `rate-limit` keyed by client or claim, and [`request-size-limit`](policies/request-size-limit.md).
+
+[`request-termination`](policies/request-termination.md) goes wherever its purpose says. Some positions are not yours to choose because Flow fixes them: a [cache](policies/cache-response.md) hit is only ever served after all of the above have passed, and the [response size limit](policies/response-size-limit.md) is checked before the other response modifiers.
+
+### Order checks when the configuration loads
+
+Flow checks each route's request-filter order (the service's filters, then the route's) when it loads the configuration, and again in `--validate-configs`.
+
+**Refused with an error** (the configuration cannot do what it says):
+
+| Problem | Why |
+|---|---|
+| A [`rate-limit`](policies/rate-limiting.md) keyed by `client-id`, a JWT claim, or a `composite` that includes `client-id`, with no [`token-auth`](policies/token-auth.md) before it | Only `token-auth` sets the caller's identity, so the limit would never see one. |
+| A [`cache-response`](policies/cache-response.md) with `identity-from` of `client-id`, `tenant-id` or a claim, on a route with no `token-auth` | The cache would never find an identity and so would never engage. |
+| `token-auth` written after the policy that reads the identity | The identity is not set yet when that policy runs. |
+
+**Allowed, with a warning** (a log line at startup; the configuration still loads):
+
+| Order | Why it is probably a mistake |
+|---|---|
+| [`request-size-limit`](policies/request-size-limit.md) before `token-auth` | A caller who is not authenticated can learn the limit from a `413`. |
+| [`ip-restriction`](policies/ip-restriction.md), or a `rate-limit` keyed by source IP, URI or header, after `token-auth` | Tokens are verified for callers that this cheaper check would have rejected. |
+| [`correlation-id`](policies/correlation-id.md) that is not the first filter | Requests rejected by the filters before it are logged without a correlation ID. |
+
+Any other order is yours to choose. For example, [`request-termination`](policies/request-termination.md) can go before `token-auth` (a maintenance switch that answers everyone the same) or after it.
+
 ### Worked example
 
 ```kdl

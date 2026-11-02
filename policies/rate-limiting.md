@@ -8,7 +8,7 @@ scenarios — `key-from` selects what gets its own budget:
 | `"source-ip"` | client IP address | Stop one client overwhelming you |
 | `"uri-group"` | everything matching a pattern | Cap total traffic to an endpoint group |
 | `"uri"` | individual URI path | Stop one hot path starving the others |
-| `"client-id"` | authenticated client | Per-user/per-tenant limiting (requires auth filter) |
+| `"client-id"` | authenticated client | Per-user/per-tenant limiting (requires `token-auth` before it; Flow refuses the configuration otherwise, see [Order checks](../policies.md#order-checks-when-the-configuration-loads)) |
 | `"header:<name>"` | value of a named header | Limit by tenant ID header or similar |
 | `"composite"` | combination of fields | Per-client-per-route or other multi-dimensional limits |
 | `"jwt-claim:<name>"` | authenticated client, with per-tier params | Subscription-tier limits — each tier gets its own params |
