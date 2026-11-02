@@ -34,7 +34,7 @@ A refusal before any header is sent is a `502` with a JSON body, `Server: Flow` 
 {"error":"bad_gateway","message":"Upstream response exceeds the configured limit"}
 ```
 
-**A response cut part-way.** Once the headers are sent the status cannot change, so the client keeps the status it was given (usually `200`) and sees a failed transfer. On HTTP/1.1 the chunked body ends without its terminating chunk and the connection is closed; on HTTP/2 the stream is reset. A well-behaved client reports this as an incomplete response (for example `curl` fails with an error). Flow drops the piece that would cross the limit whole, so the client receives at most `max-body-size` bytes, sometimes slightly fewer. Flow also closes its connection to the backend, which stops sending.
+**A response cut part-way.** Once the headers are sent the status cannot change, so the client keeps the status it was given (usually `200`) and sees a failed transfer. On HTTP/1.1 the chunked body ends without its terminating chunk and the connection is closed; on HTTP/2 the stream is reset. A well-behaved client reports this as an incomplete response. With `curl` 8.7.1 the HTTP/1.1 case ends with exit code 18 (`transfer closed with outstanding read data remaining`) and the HTTP/2 case with exit code 92 (`HTTP/2 stream 1 was not closed cleanly: CANCEL`), after the `200` and the bytes already delivered; a refusal is an ordinary `502`, so `curl` exits 0 and reports it as the status. Flow drops the piece that would cross the limit whole, so the client receives at most `max-body-size` bytes, sometimes slightly fewer. Flow also closes its connection to the backend, which stops sending.
 
 Further behavior:
 
