@@ -50,7 +50,7 @@ When Flow rejects a request itself, it answers with a short JSON body and `conte
 | Rate-limit key missing from the request (`missing-key="reject"`) | the configured status, 400 by default | `bad_request` (`unauthorized` for 401, `forbidden` for 403) | |
 | Authentication service unreachable | 503 | `service_unavailable` | |
 
-Policies that return a configured status, such as [IP restriction](policies/ip-restriction.md), [Request termination](policies/request-termination.md) and [Request size limit](policies/request-size-limit.md), send the status and message you set. Responses that come from your backends pass through unchanged.
+Policies that return a configured status, such as [IP restriction](policies/ip-restriction.md), [Request termination](policies/request-termination.md) and [Request size limit](policies/request-size-limit.md), send the status and message you set. Responses that come from your backends pass through unchanged, except on a route with [CORS](policies/cors.md), where Flow replaces the backend's `Access-Control-*` headers and adds its own to these errors too, so a browser application can read the real status.
 
 These are plain HTTP errors, with JSON bodies. On a route declared `grpc` or `grpcs`, and for a gRPC call that matches no route, Flow answers in gRPC instead, with a `grpc-status` the client can read. See [Errors Flow produces on a gRPC route](non-rest-protocols.md#errors-flow-produces-on-a-grpc-route).
 

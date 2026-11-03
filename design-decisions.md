@@ -135,6 +135,7 @@ Policies are filters that run on requests (rate limiting, IP restriction, authen
 | Reject uploads over a size limit | [Request size limit](policies/request-size-limit.md) |
 | Stop one call returning more data than expected (bulk extraction) | [Response size limit](policies/response-size-limit.md) |
 | Serve repeated requests from memory | [Cache response](policies/cache-response.md) |
+| Let a browser application on another origin call your API | [CORS](policies/cors.md) |
 
 ---
 

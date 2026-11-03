@@ -6,6 +6,8 @@ Short answers, with a link to the page that has the detail. For what is availabl
 
 **Can Flow proxy gRPC?** Yes. gRPC over cleartext HTTP/2 or TLS, on either hop between the client, Flow and the backend, including streaming calls, is proxied end to end. See [gRPC](non-rest-protocols.md#grpc).
 
+**Can Flow handle CORS for browser applications?** Yes. Add a `cors` block to a service or route and Flow answers preflight requests itself and adds the `Access-Control-*` headers. See [CORS](policies/cors.md).
+
 **Can Flow limit the size of uploads?** Yes. Add the `request-size-limit` policy to a route and requests with a larger body get `413`. See [Request size limit](policies/request-size-limit.md).
 
 **Can Flow limit the size of responses?** Yes. Add the `response-size-limit` policy to the `upstream-response` block: a response whose declared length is over the limit gets a `502`, and one that grows past it while streaming is cut off. See [Response size limit](policies/response-size-limit.md).

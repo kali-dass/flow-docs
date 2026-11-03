@@ -87,7 +87,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 | Quotas (daily and monthly caps) | Planned | |
 | Request termination (fixed status, maintenance responses) | Available | [Request termination](policies/request-termination.md) |
 | Redirects (HTTPS enforcement, path migration) | Planned | |
-| CORS handling | Planned | |
+| CORS handling (preflight, allowed origins, credentials) | Available | [CORS](policies/cors.md) |
 | Request size limit (HTTP/1.1 and HTTP/2 bodies) | Available | [Request size limit](policies/request-size-limit.md) |
 | Response size limit | Available | [Response size limit](policies/response-size-limit.md) |
 | gRPC and WebSocket message size limits | Planned | |

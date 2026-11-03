@@ -33,6 +33,7 @@ These are configured as blocks directly on a `route`, not inside `path-control`.
 | Category | Feature | What it does |
 |---|---|---|
 | Caching | [Cache response](policies/cache-response.md) | Cache upstream responses in memory; serve hits without contacting the backend |
+| Browser access | [CORS](policies/cors.md) | Let browser applications on other origins call the route: answers preflight requests itself and adds the `Access-Control-*` headers. Also configurable on a service as the default for its routes |
 
 ## Load balancer features
 
@@ -51,7 +52,7 @@ Flow has three attachment points. Each one controls a different scope:
 |---|---|---|---|
 | `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `correlation-id`, `upsert-header`, `remove-header-key-regex`, `timing-header` |
 | `path-control` at route level | `route { path-control { … } }` | Requests matching that route only — service-level runs first | Same set as above |
-| Route-level block | `route { cache-response { … } }` | Requests matching that route only — outside `path-control` | `cache-response` |
+| Route-level block | `route { cache-response { … } }` | Requests matching that route only — outside `path-control` | `cache-response`, `cors` (also valid at service level) |
 | `load-balance` on a connector | `connectors { load-balance { … } }` | Backend selection for all routes using that connector | `circuit-breaker`, `health-check` |
 
 ### Path-control (service and route level)
@@ -180,6 +181,7 @@ For the `request-filters` phase, the full sequence for one incoming request is:
    filter runs at all.
 2. **Protocol enforcement** — the matched route's `allowed-protocols` is checked. A mismatch
    returns `426`/`400`, still before any filter runs.
+   **CORS preflight** — on a route with [`cors`](policies/cors.md), a browser's preflight request is answered here, before any filter, because it carries no credentials. It is not forwarded.
 3. **Service-level `request-filters`**, in the order they're written.
 4. **Route-level `request-filters`** (for the matched route only), in the order they're
    written — only reached if every service-level filter passed.
