@@ -132,6 +132,7 @@ Policies are filters that run on requests (rate limiting, IP restriction, authen
 | Trace a request across services | [Correlation ID](policies/correlation-id.md) |
 | See latency per response | [Timing header](policies/timing-header.md) |
 | Answer immediately without calling the backend (maintenance, kill switch) | [Request termination](policies/request-termination.md) |
+| Send callers to a new address (http to https, a moved API or site) | [Redirect](policies/redirect.md) |
 | Reject uploads over a size limit | [Request size limit](policies/request-size-limit.md) |
 | Stop one call returning more data than expected (bulk extraction) | [Response size limit](policies/response-size-limit.md) |
 | Serve repeated requests from memory | [Cache response](policies/cache-response.md) |

@@ -98,7 +98,9 @@ route {
     match {
         path-prefix "/api/payments"
     }
-    upstream "payments-backend"
+    connectors {
+        "10.0.0.5:8080"
+    }
     path-control {
         request-filters {
             filter kind="request-termination" status=503 message="Payments temporarily disabled"
@@ -119,7 +121,9 @@ route {
     match {
         path-prefix "/api/v2/orders"
     }
-    upstream "orders-backend"
+    connectors {
+        "10.0.0.5:8080"
+    }
     path-control {
         request-filters {
             filter kind="request-termination" status=200 \
@@ -143,10 +147,8 @@ route {
 
 ## Distinction from `redirect`
 
-A redirect returns a `3xx` with a `Location` header telling the client to go elsewhere.
+A [redirect](redirect.md) returns a `3xx` with a `Location` header telling the client to go elsewhere.
 `request-termination` ends the request here with any status and body — the client is not sent anywhere.
-
-> **Planned:** a `redirect` policy. See [Roadmap](../roadmap.md#traffic-control).
 
 ## Where to attach it
 
@@ -175,7 +177,9 @@ route {
     match {
         path-prefix "/api/v1/legacy"
     }
-    upstream "backend"
+    connectors {
+        "10.0.0.5:8080"
+    }
     path-control {
         request-filters {
             filter kind="request-termination" status=410 \
@@ -184,3 +188,9 @@ route {
     }
 }
 ```
+
+## Filters after it
+
+A `request-termination` without a `trigger` answers every request that reaches it, so any filter written after it never runs. Flow starts anyway and logs a warning that names those filters (also shown by `--validate-configs`). Parking filters below a temporary maintenance switch, so that removing the switch restores them, is a fine use of that warning. With a `trigger`, requests without the trigger pass through and nothing is reported.
+
+A route that always terminates still needs a `connectors` block; mark its connector `disabled=true` so Flow never resolves or checks it. See [Disabled connectors](../configuration.md#disabled-connectors). For a move to a new address rather than a fixed message, use [Redirect](redirect.md).

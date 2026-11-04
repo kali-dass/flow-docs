@@ -86,7 +86,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 | Rate limiting shared across Flow instances | Planned | Limits are per instance today. |
 | Quotas (daily and monthly caps) | Planned | |
 | Request termination (fixed status, maintenance responses) | Available | [Request termination](policies/request-termination.md) |
-| Redirects (HTTPS enforcement, path migration) | Planned | |
+| Redirects (HTTPS enforcement, moved hosts, paths and API versions) | Available | [Redirect](policies/redirect.md) |
 | CORS handling (preflight, allowed origins, credentials) | Available | [CORS](policies/cors.md) |
 | Request size limit (HTTP/1.1 and HTTP/2 bodies) | Available | [Request size limit](policies/request-size-limit.md) |
 | Response size limit | Available | [Response size limit](policies/response-size-limit.md) |

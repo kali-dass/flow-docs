@@ -21,6 +21,7 @@ Flow has three kinds of policy attachment:
 | Traffic Control | [Request size limit](policies/request-size-limit.md) | ✓ | — | — | Reject request bodies over a size limit (`413`), by declared length or as the body streams |
 | Traffic Control | [Response size limit](policies/response-size-limit.md) | — | — | ✓ | Refuse or cut off responses over a size limit, to stop bulk data extraction through one call |
 | Traffic Control | [Request termination](policies/request-termination.md) | ✓ | — | — | Return a fixed response immediately without calling the upstream (maintenance mode, deprecated endpoints, kill switch) |
+| Traffic Control | [Redirect](policies/redirect.md) | ✓ | — | — | Answer with an HTTP redirect without calling the upstream: http to https, a moved API or site, a retired path |
 | Transformation | [Upsert header](policies/upsert-header.md) | — | ✓ | ✓ | Set a header on the upstream request or the response |
 | Transformation | [Remove header](policies/remove-header-key-regex.md) | — | ✓ | ✓ | Strip headers whose name matches a regex pattern |
 | Observability | [Correlation ID](policies/correlation-id.md) | ✓ | ✓ | ✓† | Inject or preserve a correlation ID; propagate to upstream; optionally echo in response (†only when `echo-downstream=true`) |
@@ -50,7 +51,7 @@ Flow has three attachment points. Each one controls a different scope:
 
 | Attachment | Block | Scope | Policies |
 |---|---|---|---|
-| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `correlation-id`, `upsert-header`, `remove-header-key-regex`, `timing-header` |
+| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `request-termination`, `redirect`, `correlation-id`, `upsert-header`, `remove-header-key-regex`, `timing-header` |
 | `path-control` at route level | `route { path-control { … } }` | Requests matching that route only — service-level runs first | Same set as above |
 | Route-level block | `route { cache-response { … } }` | Requests matching that route only — outside `path-control` | `cache-response`, `cors` (also valid at service level) |
 | `load-balance` on a connector | `connectors { load-balance { … } }` | Backend selection for all routes using that connector | `circuit-breaker`, `health-check` |
@@ -100,7 +101,9 @@ route {
     match {
         path-prefix "/api/v1"
     }
-    upstream "backend"
+    connectors {
+        "10.0.0.5:8080"
+    }
     cache-response {
         ttl-secs 60
     }
@@ -204,7 +207,7 @@ For `request-filters`, from first to last:
 3. [`token-auth`](policies/token-auth.md), which sets the caller's identity.
 4. Policies that need the identity or should not run for an unauthenticated caller: a `rate-limit` keyed by client or claim, and [`request-size-limit`](policies/request-size-limit.md).
 
-[`request-termination`](policies/request-termination.md) goes wherever its purpose says. Some positions are not yours to choose because Flow fixes them: a [cache](policies/cache-response.md) hit is only ever served after all of the above have passed, and the [response size limit](policies/response-size-limit.md) is checked before the other response modifiers.
+[`request-termination`](policies/request-termination.md) and [`redirect`](policies/redirect.md) go wherever their purpose says: first for something that applies to everyone, after `token-auth` for something only known callers should see. Some positions are not yours to choose because Flow fixes them: a [cache](policies/cache-response.md) hit is only ever served after all of the above have passed, and the [response size limit](policies/response-size-limit.md) is checked before the other response modifiers.
 
 ### Order checks when the configuration loads
 
@@ -225,8 +228,9 @@ Flow checks each route's request-filter order (the service's filters, then the r
 | [`request-size-limit`](policies/request-size-limit.md) before `token-auth` | A caller who is not authenticated can learn the limit from a `413`. |
 | [`ip-restriction`](policies/ip-restriction.md), or a `rate-limit` keyed by source IP, URI or header, after `token-auth` | Tokens are verified for callers that this cheaper check would have rejected. |
 | [`correlation-id`](policies/correlation-id.md) that is not the first filter | Requests rejected by the filters before it are logged without a correlation ID. |
+| Any filter (or the route's [cache](policies/cache-response.md)) written after a [`redirect`](policies/redirect.md), or after a [`request-termination`](policies/request-termination.md) without a `trigger` | The earlier filter answers every request, so the later ones never run. The warning names them. |
 
-Any other order is yours to choose. For example, [`request-termination`](policies/request-termination.md) can go before `token-auth` (a maintenance switch that answers everyone the same) or after it.
+Any other order is yours to choose. For example, [`request-termination`](policies/request-termination.md) can go before `token-auth` (a maintenance switch that answers everyone the same, though the filters after it then never run, which the warning above reports) or after it (so that only authenticated callers see it).
 
 ### Worked example
 

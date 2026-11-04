@@ -137,7 +137,9 @@ route {
     match {
         path-prefix "/api/v1"
     }
-    upstream "backend"
+    connectors {
+        "10.0.0.5:8080"
+    }
     path-control {
         request-filters {
             filter kind="correlation-id" echo-downstream=true trust-incoming=false

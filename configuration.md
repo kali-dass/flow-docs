@@ -54,13 +54,14 @@ the second occurrence.
 | `system.metrics.groups` | `dns`, `bandwidth` | — |
 | `system.dns-resolver` | `ndots`, `timeout-secs`, `attempts`, `ip-version`, `empty-answer-threshold` | `nameserver`, `search-domain` |
 | `services` | — | named service blocks (service names must be unique) |
-| A service | `listeners`, `routes`, `path-control`, `route-cache-dynamic-capacity`, `keepalive-timeout-secs` | — |
+| A service | `listeners`, `routes`, `path-control`, `cors`, `route-cache-dynamic-capacity`, `keepalive-timeout-secs` | — |
 | `listeners` | — | listener address lines |
 | `routes` | — | `route` blocks (route names must be unique within the service) |
-| A route | `name`, `match`, `connectors`, `allowed-methods`, `allowed-protocols`, `path-control`, `cache-response`, `downstream-read-timeout`, `downstream-write-timeout` | — |
+| A route | `name`, `match`, `connectors`, `allowed-methods`, `allowed-protocols`, `path-control`, `cache-response`, `cors`, `downstream-read-timeout`, `downstream-write-timeout` | — |
+| `cors` | `allow-origins`, `allow-methods`, `allow-headers`, `expose-headers`, `expose-flow-headers`, `allow-credentials`, `max-age-secs`, `preflight-status`, `allow-private-network`, `enabled` (route level only) — each once; see [CORS](policies/cors.md) | — |
 | `match` | the matcher | sub-matchers inside `all` / `any` |
 | `connectors` | `load-balance` | backend address lines |
-| A connector | each attribute (`proto`, `tls-sni`, `max-h2-streams`, timeouts…) — each once | — |
+| A connector | each attribute (`proto`, `tls-sni`, `max-h2-streams`, `disabled`, timeouts…) — each once | — |
 | `load-balance` | `selection` (with required `key` attribute for `"FNV"`/`"Ketama"`), `discovery`, `health-check`, `health-check-path`, `health-check-interval-secs`, `health-check-timeout-secs`, `unhealthy-threshold`, `healthy-threshold`, `circuit-breaker { … }` | — |
 | `circuit-breaker` | `error-threshold-pct`, `window-secs`, `min-requests`, `cooldown-secs`, `probe-requests`, `window-strategy`, `bucket-count` (only with `window-strategy "TimeBuckets"`) | — |
 | `path-control` | `request-filters`, `upstream-request`, `upstream-response` | — |
@@ -988,6 +989,18 @@ connectors {
 ```
 
 All fields are optional. `bucket-count` (default `10`, at least `2`) is valid only with `window-strategy "TimeBuckets"`. For what each field does, the state machine, the window strategies, and tuning, see [Circuit breaker](policies/circuit-breaker.md).
+
+### Disabled connectors
+
+`disabled=true` marks a connector Flow never uses: it is not resolved, not health checked, not part of the circuit breaker, and never chosen. It is for a route that answers every request itself, such as a [permanent redirect](policies/redirect.md) or a maintenance response, where the connector exists only because every route needs a `connectors` block.
+
+```kdl
+connectors {
+    "127.0.0.1:1" disabled=true
+}
+```
+
+The address and attributes are still checked for syntax, so a typo fails when the configuration loads. If every connector of a route is disabled and a request reaches the backend step (the route has no policy that answers it), the client gets a `502`. A temporary redirect keeps its real connectors and does not disable them.
 
 ### Protocol and TLS
 

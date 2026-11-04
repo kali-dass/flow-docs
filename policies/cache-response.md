@@ -12,7 +12,9 @@ routes {
         match {
             path-prefix "/api/v1"
         }
-        upstream "backend"
+        connectors {
+            "10.0.0.5:8080"
+        }
         cache-response {
             ttl-secs 60
             max-body-bytes 1048576
