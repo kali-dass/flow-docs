@@ -56,6 +56,14 @@ x-flow-duration-us: 62
 
 Here the backend took 1.84 ms and Flow added 62 µs.
 
+## With `cache-response`
+
+A cache hit never contacts your backend, so `X-Upstream-Duration-Us` on a `HIT` is always `0` —
+it is recomputed for that request, never replayed from whenever the entry was originally stored.
+`X-Flow-Duration-Us` is also recomputed: it reflects the actual time spent serving the hit from
+memory, not the original miss's Flow-side work. See [Cache response](cache-response.md#timing-header-on-a-cache-hit)
+for the stored-entry side of this.
+
 ## Placement
 
 For `X-Flow-Duration-Us` to capture *all* response-side processing, place `timing-header`
@@ -74,5 +82,6 @@ or client rather than reading a header per request.
 
 ## Related
 
+- [Cache response](cache-response.md) — what these headers show on a cache hit
 - [Performance](../performance.md) — what limits Flow's throughput, and how to measure it
 - [Policies index](../policies.md)

@@ -131,6 +131,16 @@ Rate-limit headers are also stripped — any header whose name begins with `Rate
 `X-RateLimit-`, or `X-Rate-Limit-` reflects a per-connection, per-time-window value and would
 be misleading if replayed from a cached response.
 
+## `timing-header` on a cache hit
+
+[Timing header](timing-header.md)'s two headers are not just stripped — a hit recomputes them
+fresh rather than replaying what the original miss recorded. A cache hit never contacts the
+backend, so `X-Upstream-Duration-Us` on a hit is always `0`; `X-Flow-Duration-Us` reflects the
+actual (fast) time spent serving this hit from memory, not the backend latency from whenever
+the entry was first stored. If `timing-header` is configured on a route with `cache-response`,
+you can tell a hit from a miss by `X-Cache-Status` alone — `X-Upstream-Duration-Us` on a `HIT`
+is informative too (always `0`), but `X-Cache-Status` is the direct answer.
+
 ## Order of processing
 
 The cache is consulted **after** the request filters: a request is first checked by the service-level and route-level filters (authentication, IP restriction, rate limits, request size) and only a request that passes can be answered from the cache. A cached response is therefore never served to a caller that [Token authentication](token-auth.md), [IP restriction](ip-restriction.md) or a rate limit would have refused, and every hit counts against the rate limit.
@@ -206,4 +216,5 @@ Internet
 
 - [Token authentication](token-auth.md) — required upstream of `identity-from "client-id"`, `"tenant-id"`, and `"claim:"`; configures which claims map to `client_id` and `tenant_id`
 - [Rate limiting](rate-limiting.md) — use alongside `cache-response` to protect cached routes from abuse; `key-from "client-id"` uses the same identity set by `token-auth`
+- [Timing header](timing-header.md) — recomputed fresh on a hit, never replayed from the original miss
 - [Policies](../policies.md)

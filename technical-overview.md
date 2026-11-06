@@ -27,15 +27,15 @@ Client
    | (picks most specific match by path, header, SNI)
    ↓
 [Route] ← contains the destination backend
-   | (applies request filters: rate limiting, IP blocking, etc.)
+   | (applies request-filters: rate limiting, IP blocking, etc.)
    ↓
 [Upstream Selector] ← picks one backend (round-robin, random, hashing)
    |
-   | (established connection to backend)
+   | (applies upstream-request modifiers: header rewriting, URI rewriting, etc.)
    ↓
 [Backend] ← proxies request, receives response
    |
-   | (applies response filters: header rewriting, timing, etc.)
+   | (applies upstream-response modifiers: header rewriting, timing, etc.)
    ↓
 [Client] ← response sent back
 ```
