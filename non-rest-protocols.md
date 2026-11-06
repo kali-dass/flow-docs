@@ -334,7 +334,17 @@ Notes:
 
 ### Policies on gRPC
 
-Flow's policies (auth, rate limiting, header manipulation) apply to gRPC requests, with these exceptions: [Request size limit](policies/request-size-limit.md) and [Response size limit](policies/response-size-limit.md) are not accepted on a gRPC route, because a cap on total bytes would cut long streaming calls, and [Cache response](policies/cache-response.md) is not accepted either, because its key ignores the request message and it does not store the `grpc-status` trailers. Flow refuses to start with any of them on a route declared `grpc` or `grpcs`. One note: gRPC metadata (key/value pairs analogous to HTTP headers) arrives as HTTP/2 headers — the `upsert-header` and `remove-header-key-regex` policies work on them directly. gRPC trailers (trailing metadata sent after the response body) are passed through unmodified; policies do not run on trailers.
+Flow's policies (auth, rate limiting, header manipulation) apply to gRPC requests, with these exceptions — Flow refuses to start with any of them on a route declared `grpc` or `grpcs`:
+
+| Policy | Why it is refused on a gRPC route |
+|---|---|
+| [Request size limit](policies/request-size-limit.md), [Response size limit](policies/response-size-limit.md) | A cap on total bytes would cut long streaming calls. |
+| [Cache response](policies/cache-response.md) | Its key ignores the request message (every caller of a method would get the first response) and it does not store the `grpc-status` trailers. |
+| [Redirect](policies/redirect.md) | gRPC clients do not follow HTTP redirects; a redirect has no meaning there. |
+| [CORS](policies/cors.md) | CORS is a browser mechanism; native gRPC has no browser preflight to answer. |
+| [URI transform](policies/uri-transform.md) | A gRPC call's path *is* its procedure name — rewriting it dispatches a different method, almost certainly with an incompatible request/response schema, not just a different URL. |
+
+One note: gRPC metadata (key/value pairs analogous to HTTP headers) arrives as HTTP/2 headers — the `upsert-header` and `remove-header-key-regex` policies work on them directly. gRPC trailers (trailing metadata sent after the response body) are passed through unmodified; policies do not run on trailers.
 
 ---
 

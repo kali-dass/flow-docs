@@ -24,6 +24,7 @@ Flow has three kinds of policy attachment:
 | Traffic Control | [Redirect](policies/redirect.md) | ✓ | — | — | Answer with an HTTP redirect without calling the upstream: http to https, a moved API or site, a retired path |
 | Transformation | [Upsert header](policies/upsert-header.md) | — | ✓ | ✓ | Set a header on the upstream request or the response |
 | Transformation | [Remove header](policies/remove-header-key-regex.md) | — | ✓ | ✓ | Strip headers whose name matches a regex pattern |
+| Transformation | [URI transform](policies/uri-transform.md) | — | ✓ | — | Rewrite the path and query string sent to the backend (prefix strip, regex rewrite, query param edits), without changing the client's own request |
 | Observability | [Correlation ID](policies/correlation-id.md) | ✓ | ✓ | ✓† | Inject or preserve a correlation ID; propagate to upstream; optionally echo in response (†only when `echo-downstream=true`) |
 | Observability | [Timing header](policies/timing-header.md) | — | — | ✓ | Add upstream and total latency timing headers to the response |
 
@@ -51,7 +52,7 @@ Flow has three attachment points. Each one controls a different scope:
 
 | Attachment | Block | Scope | Policies |
 |---|---|---|---|
-| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `request-termination`, `redirect`, `correlation-id`, `upsert-header`, `remove-header-key-regex`, `timing-header` |
+| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `request-termination`, `redirect`, `correlation-id`, `upsert-header`, `remove-header-key-regex`, `uri-transform`, `timing-header` |
 | `path-control` at route level | `route { path-control { … } }` | Requests matching that route only — service-level runs first | Same set as above |
 | Route-level block | `route { cache-response { … } }` | Requests matching that route only — outside `path-control` | `cache-response`, `cors` (also valid at service level) |
 | `load-balance` on a connector | `connectors { load-balance { … } }` | Backend selection for all routes using that connector | `circuit-breaker`, `health-check` |
