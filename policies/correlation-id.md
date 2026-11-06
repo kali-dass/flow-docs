@@ -88,10 +88,9 @@ Set `echo-downstream=true` to include the ID in the response. Useful when the cl
 filter kind="correlation-id" echo-downstream=true
 ```
 
-**Known issue with `cache-response`:** on a route that also caches responses, a cache hit
-echoes back the correlation ID from whichever request originally populated that cache entry —
-not this request's own ID. If you rely on `echo-downstream` to confirm the ID for a specific
-request, a cached route can show you someone else's instead.
+**With `cache-response`:** a cache hit echoes back *this* request's own correlation ID, never
+the ID of whichever request originally populated the cache entry — correct even though a hit
+never contacts the backend.
 
 ## Generators
 
@@ -152,3 +151,9 @@ route {
     }
 }
 ```
+
+## Related
+
+- [Cache response](cache-response.md) — a cache hit echoes this request's own ID, never one frozen in from the request that originally stored the entry
+- [Timing header](timing-header.md) — the same per-request-correctness-on-a-hit guarantee, for latency instead of identity
+- [Policies index](../policies.md)
