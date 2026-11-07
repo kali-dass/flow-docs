@@ -233,6 +233,8 @@ Flow checks each route's request-filter order (the service's filters, then the r
 | [`ip-restriction`](policies/ip-restriction.md), or a `rate-limit` keyed by source IP, URI or header, after `token-auth` | Tokens are verified for callers that this cheaper check would have rejected. |
 | [`correlation-id`](policies/correlation-id.md) that is not the first filter | Requests rejected by the filters before it are logged without a correlation ID. |
 | Any filter (or the route's [cache](policies/cache-response.md)) written after a [`redirect`](policies/redirect.md), or after a [`request-termination`](policies/request-termination.md) without a `trigger` | The earlier filter answers every request, so the later ones never run. The warning names them. |
+| A [`header-transform`](policies/header-transform.md), [`timing-header`](policies/timing-header.md) or [`uri-transform`](policies/uri-transform.md) filter in `upstream-request`/`upstream-response` on a route where `redirect` or an un-triggered `request-termination` answers every request in `request-filters` | The backend is never contacted, so neither phase ever runs. |
+| [`correlation-id`](policies/correlation-id.md) `echo-downstream=true` written before that same kind of answer-every-request filter | The ID is still generated and set, but the response is sent before the echo would be added, so the echo never reaches the client. |
 
 Any other order is yours to choose. For example, [`request-termination`](policies/request-termination.md) can go before `token-auth` (a maintenance switch that answers everyone the same, though the filters after it then never run, which the warning above reports) or after it (so that only authenticated callers see it).
 

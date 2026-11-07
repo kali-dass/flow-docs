@@ -92,6 +92,12 @@ filter kind="correlation-id" echo-downstream=true
 the ID of whichever request originally populated the cache entry — correct even though a hit
 never contacts the backend.
 
+**With `redirect` or `request-termination`:** if either answers every request on this route and
+is written *after* `correlation-id` in `request-filters`, the response is sent before the echo
+would be added, so `echo-downstream` never reaches the client — the ID is still generated and
+available to logs, just not echoed. Flow warns about this at config load; see [Order checks when
+the configuration loads](../policies.md#order-checks-when-the-configuration-loads).
+
 ## Generators
 
 | Generator | Format | Use case |
