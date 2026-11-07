@@ -127,8 +127,7 @@ Policies are filters that run on requests (rate limiting, IP restriction, authen
 | Verify a bearer, cookie, or query token | [Token authentication](policies/token-auth.md) |
 | Cap request rates, or enforce fair use per client | [Rate limiting](policies/rate-limiting.md) |
 | Allow or block source IP ranges | [IP restriction](policies/ip-restriction.md) |
-| Add or change a header | [Upsert header](policies/upsert-header.md) |
-| Strip headers by name | [Remove header](policies/remove-header-key-regex.md) |
+| Add, change, or strip headers | [Header transform](policies/header-transform.md) |
 | Rewrite the path/query sent to the backend without changing the client's URL | [URI transform](policies/uri-transform.md) |
 | Trace a request across services | [Correlation ID](policies/correlation-id.md) |
 | See latency per response | [Timing header](policies/timing-header.md) |

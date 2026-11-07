@@ -22,8 +22,7 @@ Flow has three kinds of policy attachment:
 | Traffic Control | [Response size limit](policies/response-size-limit.md) | — | — | ✓ | Refuse or cut off responses over a size limit, to stop bulk data extraction through one call |
 | Traffic Control | [Request termination](policies/request-termination.md) | ✓ | — | — | Return a fixed response immediately without calling the upstream (maintenance mode, deprecated endpoints, kill switch) |
 | Traffic Control | [Redirect](policies/redirect.md) | ✓ | — | — | Answer with an HTTP redirect without calling the upstream: http to https, a moved API or site, a retired path |
-| Transformation | [Upsert header](policies/upsert-header.md) | — | ✓ | ✓ | Set a header on the upstream request or the response |
-| Transformation | [Remove header](policies/remove-header-key-regex.md) | — | ✓ | ✓ | Strip headers whose name matches a regex pattern |
+| Transformation | [Header transform](policies/header-transform.md) | — | ✓ | ✓ | Remove headers by regex and/or set headers on the upstream request or the response |
 | Transformation | [URI transform](policies/uri-transform.md) | — | ✓ | — | Rewrite the path and query string sent to the backend (prefix strip, regex rewrite, query param edits), without changing the client's own request |
 | Observability | [Correlation ID](policies/correlation-id.md) | ✓ | ✓ | ✓† | Inject or preserve a correlation ID; propagate to upstream; optionally echo in response (†only when `echo-downstream=true`) |
 | Observability | [Timing header](policies/timing-header.md) | — | — | ✓ | Add upstream and total latency timing headers to the response |
@@ -52,7 +51,7 @@ Flow has three attachment points. Each one controls a different scope:
 
 | Attachment | Block | Scope | Policies |
 |---|---|---|---|
-| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `request-termination`, `redirect`, `correlation-id`, `upsert-header`, `remove-header-key-regex`, `uri-transform`, `timing-header` |
+| `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `request-termination`, `redirect`, `correlation-id`, `header-transform`, `uri-transform`, `timing-header` |
 | `path-control` at route level | `route { path-control { … } }` | Requests matching that route only — service-level runs first | Same set as above |
 | Route-level block | `route { cache-response { … } }` | Requests matching that route only — outside `path-control` | `cache-response`, `cors` (also valid at service level) |
 | `load-balance` on a connector | `connectors { load-balance { … } }` | Backend selection for all routes using that connector | `circuit-breaker`, `health-check` |
@@ -82,7 +81,11 @@ services {
                 // Applies only to this route
                 path-control {
                     upstream-request {
-                        filter kind="upsert-header" key="x-api-key" value="secret"
+                        filter kind="header-transform" {
+                            upsert {
+                                header name="x-api-key" value="secret"
+                            }
+                        }
                     }
                 }
             }
@@ -159,9 +162,9 @@ in, not by the filter itself.
 | `upstream-request` | Just before the request is sent to the backend | Rewrite **request** headers |
 | `upstream-response` | When the response comes back from the backend | Rewrite **response** headers |
 
-Note that some policies work in more than one phase. `upsert-header` and
-`remove-header-key-regex` each work in both `upstream-request` and `upstream-response` — the
-block you place them in decides whether they act on the request or the response. `correlation-id`
+Note that some policies work in more than one phase. `header-transform` works in both
+`upstream-request` and `upstream-response` — the block you place it in decides whether it acts
+on the request or the response. `correlation-id`
 spans all three phases: declare it in `request-filters` and it automatically runs in
 `upstream-request` (to propagate the ID) and, when `echo-downstream=true`, in `upstream-response`
 (to include the ID in the response). You do not declare it in the other phase blocks — one

@@ -96,7 +96,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 
 | Capability | Status | Notes |
 |---|---|---|
-| Request and response header rewriting | Available | [Upsert header](policies/upsert-header.md), [Remove header](policies/remove-header-key-regex.md) |
+| Request and response header rewriting | Available | [Header transform](policies/header-transform.md) |
 | Correlation ID | Available | [Correlation ID](policies/correlation-id.md) |
 | Response caching (in memory, per instance) | Available | [Response caching](policies/cache-response.md) |
 | URI and path rewriting | Available | [URI transform](policies/uri-transform.md) |

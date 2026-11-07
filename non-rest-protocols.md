@@ -344,7 +344,7 @@ Flow's policies (auth, rate limiting, header manipulation) apply to gRPC request
 | [CORS](policies/cors.md) | CORS is a browser mechanism; native gRPC has no browser preflight to answer. |
 | [URI transform](policies/uri-transform.md) | A gRPC call's path *is* its procedure name — rewriting it dispatches a different method, almost certainly with an incompatible request/response schema, not just a different URL. |
 
-One note: gRPC metadata (key/value pairs analogous to HTTP headers) arrives as HTTP/2 headers — the `upsert-header` and `remove-header-key-regex` policies work on them directly. gRPC trailers (trailing metadata sent after the response body) are passed through unmodified; policies do not run on trailers.
+One note: gRPC metadata (key/value pairs analogous to HTTP headers) arrives as HTTP/2 headers — the `header-transform` policy works on them directly. gRPC trailers (trailing metadata sent after the response body) are passed through unmodified; policies do not run on trailers.
 
 ---
 
@@ -360,7 +360,7 @@ What this means in practice:
 
 - The HTTP/1.1 upgrade handshake (`GET` + `Connection: Upgrade` + `Upgrade: websocket`) passes through.
 - After the 101 response, the connection operates as a raw bidirectional byte stream.
-- Flow's request/response policies (`upsert-header`, `rate-limit`, etc.) run on the initial HTTP handshake, not on individual WebSocket frames. For the same reason, [Request size limit](policies/request-size-limit.md) applies to the upgrade request only and [Response size limit](policies/response-size-limit.md) does not apply to the upgrade response, and neither counts what is sent after the `101`.
+- Flow's request/response policies (`header-transform`, `rate-limit`, etc.) run on the initial HTTP handshake, not on individual WebSocket frames. For the same reason, [Request size limit](policies/request-size-limit.md) applies to the upgrade request only and [Response size limit](policies/response-size-limit.md) does not apply to the upgrade response, and neither counts what is sent after the `101`.
 - No subprotocol negotiation, ping/pong injection, or frame-level inspection.
 
 ### Required timeout configuration

@@ -20,8 +20,8 @@ somewhere else and never calls your backend at all; `uri-transform` changes what
 map the public path onto whatever your backend's real layout happens to be.
 
 It is also deliberately headers-free: changing the upstream `Host` is
-[Upsert header](upsert-header.md)'s job, not this policy's. `uri-transform` only ever touches
-the path and the query string.
+[Header transform](header-transform.md)'s job, not this policy's. `uri-transform` only ever
+touches the path and the query string.
 
 ## Options
 
@@ -110,11 +110,10 @@ for your case, chain two `uri-transform` filters instead.
 
 ## Not supported here
 
-- **Rewriting headers.** Use [Upsert header](upsert-header.md) and
-  [Remove header](remove-header-key-regex.md) — each is independently ordered in
-  `upstream-request`, so you can combine a header change with a `uri-transform` in one block,
-  in the order you write them.
-- **Changing the `Host` header.** Same reason — `upsert-header` already does this.
+- **Rewriting headers.** Use [Header transform](header-transform.md) — it is independently
+  ordered in `upstream-request`, so you can combine a header change with a `uri-transform` in
+  one block, in the order you write them.
+- **Changing the `Host` header.** Same reason — `header-transform` already does this.
 - **Rewriting the HTTP method.** Not offered; it has consequences for caching and for the
   `allowed-methods` check that already matched the route on the original method.
 - **gRPC routes.** A gRPC call's path *is* the procedure name
@@ -183,5 +182,5 @@ unaffected; only what Flow forwards changes.
 ## Related
 
 - [Redirect](redirect.md) — sends the *client* elsewhere instead, never calling the backend
-- [Upsert header](upsert-header.md) and [Remove header](remove-header-key-regex.md) — for headers and the `Host` the backend sees
+- [Header transform](header-transform.md) — for headers and the `Host` the backend sees
 - [Policies index](../policies.md)

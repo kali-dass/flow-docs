@@ -141,7 +141,11 @@ path-control {
         filter kind="ip-restriction" deny="192.168.0.0/16"
     }
     upstream-request {
-        filter kind="upsert-header" key="X-Api-Gateway" value="Flow"
+        filter kind="header-transform" {
+            upsert {
+                header name="X-Api-Gateway" value="Flow"
+            }
+        }
     }
     upstream-response {
         filter kind="timing-header"

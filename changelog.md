@@ -153,7 +153,7 @@
 - **[Token authentication](policies/token-auth.md)** (`jwt-validate`) — multi-issuer JWT verification against a live JWKS endpoint or a static pinned key, with `exp`, `nbf`, `aud`, `iss` and required-claims checks and a verification cache.
 - **IP restriction** (`block-cidr-range`) — allow or deny clients by CIDR range.
 - **Rate limiting** — `rate-limit-single-uri-group`, `rate-limit-multi-source-ip` and `rate-limit-multi-uri`.
-- **Header policies** — `upsert-header` and `remove-header-key-regex`, on requests and responses.
+- **[Header transform](policies/header-transform.md)** (`header-transform`) — remove and/or upsert headers, on requests and responses.
 - **[Timing headers](policies/timing-header.md)** (`timing-header`) — adds latency headers to each response so you can see how long Flow took and how long the backend took for the call: `X-Flow-Duration-Us` and `X-Upstream-Duration-Us`, in microseconds. On a [Response caching](policies/cache-response.md) hit, both are recomputed for that request — `X-Upstream-Duration-Us` is always `0` (no backend was contacted) — rather than replaying whatever the original miss recorded.
 
 #### Observability

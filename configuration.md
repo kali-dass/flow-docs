@@ -1110,7 +1110,11 @@ path-control {
         filter kind="ip-restriction" deny="10.0.0.0/8"
     }
     upstream-request {
-        filter kind="upsert-header" key="x-api-key" value="secret"
+        filter kind="header-transform" {
+            upsert {
+                header name="x-api-key" value="secret"
+            }
+        }
     }
     upstream-response {
         filter kind="timing-header"
