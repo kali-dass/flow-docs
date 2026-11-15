@@ -25,6 +25,7 @@ Options:
       --license-file <LICENSE_FILE>               Path to the signed license file [env: FLOW_LICENSE_FILE]
       --log-level <LOG_LEVEL>                     Application log level: error, warn, info, debug, or trace
   -h, --help                                     Print help
+  -V, --version                                  Print version
 ```
 
 ---
@@ -185,6 +186,19 @@ the config file sets a level, Flow defaults to `info`.
 
 This flag and `system.logging.app-log.level` are the only two ways to control the level — see
 [Logging](#logging) below.
+
+## `-V`, `--version`
+
+Prints Flow's version and exits — no config file needed, no license checked.
+
+```bash
+flow --version
+# flow 0.2.0
+```
+
+The same version string every logged [file-log](policies/file-log.md) record carries in its
+`version` field, so a running process's logs and `flow --version` on that same binary can never
+disagree.
 
 ---
 
