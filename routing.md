@@ -306,6 +306,11 @@ curl -kv https://localhost:8443/ -H "Host: onevariable.com"
 That second command **fails to match**: curl sends SNI `localhost` (from the URL) while the
 `Host` header claims `onevariable.com`. On TLS, Flow matches the SNI, not the header.
 
+This match — and backend selection right after it — happens before any `upstream-request`
+filter runs. If you rewrite `Host` with [`header-transform`](policies/header-transform.md#rewriting-host-does-not-change-which-backend-was-picked),
+that happens later and changes only what the backend receives, never which backend was
+already picked.
+
 ### SNI suffix
 
 ```bash

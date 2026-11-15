@@ -87,6 +87,22 @@ remove {
 An over-broad pattern silently strips headers you meant to keep, which can be hard to
 diagnose — the header simply isn't there.
 
+## Rewriting `Host` does not change which backend was picked
+
+`upsert { header name="Host" value="..." }` in `upstream-request` only changes what the
+**already-selected** backend receives — it can never change *which* backend that is.
+
+Routing (matching the request to a route) and backend selection (picking a connector from
+that route's pool) both happen **before** any `upstream-request` filter runs, using the
+request's **original** `Host` header (or TLS SNI on HTTPS) — see
+[Routing's "SNI and `Host`"](../routing.md#sni-and-host) for how that match works. By the time
+`header-transform` rewrites `Host`, the backend is already chosen; the new value travels only
+in the proxied request.
+
+This is a common point of confusion coming from proxies where rewriting `Host` *is* how you
+retarget a request. In Flow, retargeting is the `match` block's job — `upsert` on `Host` is
+for making the backend see a different hostname, not for picking a different backend.
+
 ## Common uses
 
 **Identify the proxy to your backend, and strip internal headers before they reach it:**
