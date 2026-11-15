@@ -174,8 +174,13 @@ Warnings worth watching for at startup:
 
 What is and is not logged today:
 
-- **Logged:** startup and configuration messages, errors (connection failures, invalid requests, timeouts), and warnings such as disabled certificate verification or cleartext backends.
-- **Not logged:** one record per request, and request or response bodies. For per-request visibility use the [metrics endpoint](metrics.md) or the `timing-header` filter below.
+- **Logged by the application log** (this section): startup and configuration messages, errors
+  (connection failures, invalid requests, timeouts), and warnings such as disabled certificate
+  verification or cleartext backends.
+- **One record per request** is a separate, opt-in facility, not the application log above:
+  attach the [`file-log`](policies/file-log.md) policy to a service or route. It is not on by
+  default — add it explicitly where you want per-request visibility.
+- **Not logged, by either:** request or response bodies.
 
 ### The `timing-header` filter
 
