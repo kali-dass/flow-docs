@@ -110,7 +110,8 @@ For what changed in each build, see the [Changelog](changelog.md).
 | Prometheus metrics endpoint | Preview | [Metrics](metrics.md) |
 | Per-backend and per-policy metrics | Planned | Includes cache hit and miss counters and authentication failures |
 | TLS and authentication for the metrics endpoint | Planned | |
-| Structured access logs with external sinks | Planned | |
+| Structured per-request access logs (file, stdout, stderr) | Preview | [File-log](policies/file-log.md) |
+| Structured access logs to external sinks (HTTP, Kafka, syslog) | Planned | |
 | OpenTelemetry tracing | Planned | |
 | Log masking for secrets and personal data | Planned | |
 

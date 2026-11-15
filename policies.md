@@ -5,11 +5,12 @@
 > **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
 
-Flow has three kinds of policy attachment:
+Flow has four kinds of policy attachment:
 
 - **`path-control` filters** — declared in a `path-control` block on a service or route; inspect or rewrite traffic as it passes through.
 - **Route-level blocks** — declared directly on a `route` (e.g. `cache-response`); apply only to that route.
 - **Load balancer features** — declared inside `load-balance` on a connector (e.g. `circuit-breaker`, `health-check`); gate which backends receive requests.
+- **`logging` filters** — declared in a `logging` block on a service or route (e.g. `file-log`); run after the response is complete, observing it without changing it.
 
 ## Available policies
 
@@ -36,6 +37,14 @@ These are configured as blocks directly on a `route`, not inside `path-control`.
 | Caching | [Cache response](policies/cache-response.md) | Cache upstream responses in memory; serve hits without contacting the backend |
 | Browser access | [CORS](policies/cors.md) | Let browser applications on other origins call the route: answers preflight requests itself and adds the `Access-Control-*` headers. Also configurable on a service as the default for its routes |
 
+## Logging
+
+Configured as a `logging` block on a service or route, not inside `path-control`.
+
+| Category | Feature | What it does |
+|---|---|---|
+| Observability | [File-log](policies/file-log.md) | Write one JSON line per request — status, timing, bytes, and named header/query captures — to a file, stdout, or stderr |
+
 ## Load balancer features
 
 These are configured inside a `load-balance` block on a connector, not in `path-control` or on a route. They act on backend selection, not on individual request/response headers.
@@ -47,13 +56,14 @@ These are configured inside a `load-balance` block on a connector, not in `path-
 
 ## Where policies attach
 
-Flow has three attachment points. Each one controls a different scope:
+Flow has four attachment points. Each one controls a different scope:
 
 | Attachment | Block | Scope | Policies |
 |---|---|---|---|
 | `path-control` at service level | `services { MyGateway { path-control { … } } }` | Every request this service handles | `ip-restriction`, `rate-limit`, `token-auth`, `request-termination`, `redirect`, `correlation-id`, `header-transform`, `uri-transform`, `timing-header` |
 | `path-control` at route level | `route { path-control { … } }` | Requests matching that route only — service-level runs first | Same set as above |
 | Route-level block | `route { cache-response { … } }` | Requests matching that route only — outside `path-control` | `cache-response`, `cors` (also valid at service level) |
+| `logging` at service or route level | `services { MyGateway { logging { … } } }` / `route { logging { … } }` | Every request (service level) or that route's requests (route level) — both run if both are declared | `file-log` |
 | `load-balance` on a connector | `connectors { load-balance { … } }` | Backend selection for all routes using that connector | `circuit-breaker`, `health-check` |
 
 ### Path-control (service and route level)

@@ -185,14 +185,16 @@ whether you want to expose internal timing to clients, not for performance. See
 
 ### Observability beyond logs
 
-Flow's logging is startup messages, errors, and warnings, with a configurable level and output. For everything else, use:
+Flow's own application log is startup messages, errors, and warnings, with a configurable
+level and output — separate from [`file-log`](policies/file-log.md), a per-request access log
+written to a file, stdout, or stderr. For everything else, use:
 
 - The [Prometheus metrics endpoint](metrics.md) for request counts, latency, and in-flight requests
 - Response headers (via the `timing-header` filter) for per-request latency
 - `--log-level debug` for startup diagnostics
 - External observability tools (load balancers, service mesh, APM agents) for fleet-wide visibility
 
-> **Planned:** structured access logs, per-backend and per-policy metrics, OpenTelemetry tracing, and log masking. See [Roadmap](roadmap.md#observability).
+> **Planned:** access logs to external sinks (HTTP, Kafka, syslog), per-backend and per-policy metrics, OpenTelemetry tracing, and log masking. See [Roadmap](roadmap.md#observability).
 
 ---
 

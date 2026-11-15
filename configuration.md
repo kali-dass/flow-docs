@@ -47,9 +47,11 @@ the second occurrence.
 | Top level | `system`, `services` | — |
 | `system` | `threads-per-service`, `daemonize`, `pid-file`, `upgrade-socket`, `ca-file`, `real-ip-source` | — |
 | `system.trusted-proxies` | — | `cidr` |
-| `system.logging` | `app-log` | — |
+| `system.logging` | `app-log` | `file-log-destination` |
 | `system.logging.app-log` | `level`, `output`, `log-dir` | — |
 | `system.logging.access-log` | *(reserved — content ignored)* | — |
+| `system.logging.file-log-destination` | `name`, `output`, `path`, `queue-capacity`, `overflow-policy`, `evict-high-watermark`, `evict-low-watermark`, `buffer-bytes`, `flush-interval-ms`, `inactive-timeout-ms`, `max-retries`, `retry-delay-ms`, `write-timeout-ms`, `io-pool-size`, `overflow-cooldown-ms`, `high-watermark`, `capacity-warning-threshold` — each once; see [file-log](policies/file-log.md) | — |
+| A service or route's `logging` block | — | `filter` nodes (`kind="file-log"`) |
 | `system.metrics` | `listen`, `enabled`, `groups` | — |
 | `system.metrics.groups` | `dns`, `bandwidth` | — |
 | `system.dns-resolver` | `ndots`, `timeout-secs`, `attempts`, `ip-version`, `empty-answer-threshold` | `nameserver`, `search-domain` |
@@ -127,7 +129,8 @@ system {
 ### `logging.app-log`
 
 Flow's own application log — startup, config validation, warnings, errors, upgrade events.
-Not per-request access logging (Flow doesn't have that yet).
+Not per-request access logging — see [`logging.file-log-destination`](#loggingfile-log-destination)
+and [file-log](policies/file-log.md) below for that.
 
 | Setting | Meaning |
 |---|---|
@@ -148,9 +151,43 @@ stdout, which has nowhere useful to go once the process is detached. See
 
 An `access-log` block may appear inside `logging`. Flow accepts it without error and does not
 read anything inside it. The name is reserved so configs that include it now will not need to
-be changed later.
+be changed later. This is unrelated to `file-log-destination` below.
 
-> **Planned:** per-request access logging. See [Roadmap](roadmap.md#observability).
+### `logging.file-log-destination`
+
+Per-request access logging — the `file-log` policy — writes to one or more named
+destinations declared here. Full reference, including named capture, retry and circuit-breaker
+behavior: [file-log](policies/file-log.md).
+
+```kdl
+system {
+    logging {
+        file-log-destination name="access" output="file" path="/var/log/flow/access.log"
+    }
+}
+```
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `name` | required | The key a `logging { filter kind="file-log" destination="..." }` block resolves against. |
+| `output` | `"stdout"` | `"stdout"`, `"stderr"`, or `"file"` (requires `path`). |
+| `path` | — | File path. Required when `output` is `"file"`; rejected otherwise. |
+| `queue-capacity` | 10000 | Records held in memory between the request thread and the writer thread before `overflow-policy` decides what happens next. |
+| `overflow-policy` | `"reject-newest"` | `"reject-newest"` (drop the new record) or `"evict-oldest"` (drop the oldest queued batch instead) — see [file-log](policies/file-log.md#queue-overflow). |
+| `evict-high-watermark` | 0.9 | `overflow-policy="evict-oldest"` only. Fraction (over 0, at most 1) of `queue-capacity` at or above which a batch eviction runs. Rejected under `"reject-newest"`. |
+| `evict-low-watermark` | 0.7 | `overflow-policy="evict-oldest"` only. Fraction (over 0, at most 1, and less than `evict-high-watermark`) a batch eviction stops at. Rejected under `"reject-newest"`. |
+| `buffer-bytes` | 65536 | Bytes accumulated before a flush. |
+| `flush-interval-ms` | 1000 | Flush at most this long after the first record in a batch, even if the buffer isn't full. |
+| `inactive-timeout-ms` | 200 | Flush this long after the *most recent* record if no new one arrives — catches a batch's tail sooner than `flush-interval-ms` once traffic goes quiet. For a low-throughput destination, raise this (or set it close to `flush-interval-ms`) to avoid flushing nearly every record individually — see [file-log](policies/file-log.md#buffering-and-flush-triggers). |
+| `max-retries` | 3 | Retries for a write that fails fast (not one that hangs — see `write-timeout-ms`). |
+| `retry-delay-ms` | 100 | Delay between retries, and between recovery probes once retries are exhausted. |
+| `write-timeout-ms` | 500 | How long a write is given before a second, independent attempt races it — see [file-log](policies/file-log.md#write-hangs-the-watchdog-pool). |
+| `io-pool-size` | 2 | Bounds how many write attempts (the primary plus any watchdog-spawned fresh ones) can ever be concurrently stuck for one destination — see [file-log](policies/file-log.md#write-hangs-the-watchdog-pool). |
+| `overflow-cooldown-ms` | 5000 | How long after this destination's circuit closes and its queue occupancy drops below `high-watermark` before `errors-only` sampling is no longer forced on every filter pointing at it — see [file-log](policies/file-log.md#adaptive-sampling). |
+| `high-watermark` | 0.9 | Fraction (over 0, at most 1) of `queue-capacity` at or above which `errors-only` sampling is forced, independent of whether the circuit is open — see [file-log](policies/file-log.md#adaptive-sampling). |
+| `capacity-warning-threshold` | 0.8 | Fraction (over 0, at most 1) of `queue-capacity` at or above which a `WARN` is logged — purely observational, never changes sampling — see [file-log](policies/file-log.md#capacity-warnings). |
+
+> **Preview:** `file-log`. See [file-log](policies/file-log.md) and [Roadmap](roadmap.md#observability).
 
 ### Real client IP
 

@@ -78,6 +78,8 @@
 
 - **[Prometheus metrics](metrics.md) (preview)** — add `system { metrics { listen "127.0.0.1:9090" } }` to expose `GET /metrics` on its own listener. Per-route request counts (`flow_requests_total`, with a `source` label that separates backend responses from responses Flow produced itself), latency histograms for the whole request, response headers, client transfer, backend round trip, backend connection setup, and the remaining overhead (Flow's own work for a normal request), an in-flight gauge, and a separate family for SSE and WebSocket streams (active streams, lifetime, bytes, how each ended). Optional `groups { dns true }` (per-hostname DNS resolution state) and `groups { bandwidth true }` (bytes in and out per route); `enabled false` turns the endpoint off while keeping the block. The endpoint has no authentication or TLS yet. See [Metrics](metrics.md).
 
+- **[File-log](policies/file-log.md) (preview)** — per-request access logging to a file, `stdout`, or `stderr`. Attach `filter kind="file-log" destination="..."` to any service or route; writes one JSON line per request without ever blocking it. `sampling`: `"all"` (default), `"errors-only"`, `"slow-only"` (a duration cutoff), or `"sample-rate"` (roughly 1 in N). Capture specific headers/query parameters by name, or every one of them raw. Reliability: retries, a circuit breaker, and a watchdog that races a second write attempt against one that's hung rather than waiting on it forever. Choose what happens when a destination's queue fills up: drop the newest record (default) or the oldest batch of queued ones. See [File-log](policies/file-log.md).
+
 ### Fixes
 
 #### Policies
