@@ -107,9 +107,10 @@ For what changed in each build, see the [Changelog](changelog.md).
 | Capability | Status | Notes |
 |---|---|---|
 | Timing headers | Available | [Timing header](policies/timing-header.md) |
-| Prometheus metrics endpoint | Preview | [Metrics](metrics.md) |
+| Prometheus metrics endpoint | Available | [Metrics](metrics.md) |
 | Per-backend and per-policy metrics | Planned | Includes cache hit and miss counters and authentication failures |
-| TLS and authentication for the metrics endpoint | Planned | |
+| TLS, authentication (basic/bearer), and a source CIDR allowlist for the metrics endpoint | Available | [Metrics](metrics.md#securing-the-endpoint) |
+| mTLS client-cert verification for the metrics endpoint | Planned | |
 | Structured per-request access logs (file, stdout, stderr) | Preview | [File-log](policies/file-log.md) |
 | Structured access logs to external sinks (HTTP, Kafka, syslog) | Planned | |
 | OpenTelemetry tracing | Planned | |

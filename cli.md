@@ -68,8 +68,10 @@ an address exists on the host. Flow checks that when it actually starts, and ref
 Use it:
 
 - **In CI**, on every change to a config file.
-- **Before a deploy**, on the target host — it catches a bad certificate path or an
-  unreadable CA file that a syntax check on your laptop would miss.
+- **Before a deploy**, on the target host — it catches a bad certificate path, an
+  unreadable CA file, or a missing metrics-endpoint credential (`auth { bearer token-env="…" }`
+  and similar actually resolve the secret, the same way a listener's own `cert-path` is
+  actually read) that a syntax check on your laptop would miss.
 
 This is the cheapest way to avoid a failed rollout.
 

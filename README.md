@@ -64,7 +64,7 @@ The [Roadmap](roadmap.md) lists what is available and what is planned.
 | [Protocols](protocols.md) | HTTP/1.1, HTTP/2, h2c: technical details and performance |
 | [Non-REST Protocols](non-rest-protocols.md) | WebSocket, gRPC, SSE, GraphQL, JSON-RPC |
 | [Policies](policies.md) | Rate limiting, token authentication, IP restriction, response caching, header rewriting, timing headers, and more |
-| [Metrics](metrics.md) | The Prometheus endpoint: every metric, label, and setting (preview) |
+| [Metrics](metrics.md) | The Prometheus endpoint: every metric, label, and setting |
 | [Performance](performance.md) | Benchmarks, safe operating rates, and tuning |
 | [Operations](operations.md) | Running in production, zero-downtime upgrades, logging |
 | [Licensing](license.md) | The license file, where Flow looks for it, and what happens at expiration |

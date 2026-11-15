@@ -52,7 +52,7 @@ the second occurrence.
 | `system.logging.access-log` | *(reserved — content ignored)* | — |
 | `system.logging.file-log-destination` | `name`, `output`, `path`, `queue-capacity`, `overflow-policy`, `evict-high-watermark`, `evict-low-watermark`, `buffer-bytes`, `flush-interval-ms`, `inactive-timeout-ms`, `max-retries`, `retry-delay-ms`, `write-timeout-ms`, `io-pool-size`, `overflow-cooldown-ms`, `high-watermark`, `capacity-warning-threshold` — each once; see [file-log](policies/file-log.md) | — |
 | A service or route's `logging` block | — | `filter` nodes (`kind="file-log"`) |
-| `system.metrics` | `listen`, `enabled`, `groups` | — |
+| `system.metrics` | `listen`, `enabled`, `tls`, `auth`, `allow`, `insecure-allow-public`, `groups` | — |
 | `system.metrics.groups` | `dns`, `bandwidth` | — |
 | `system.dns-resolver` | `ndots`, `timeout-secs`, `attempts`, `ip-version`, `empty-answer-threshold` | `nameserver`, `search-domain` |
 | `services` | — | named service blocks (service names must be unique) |
@@ -123,7 +123,7 @@ system {
 | `pid-file` | Absolute path to the PID file used when daemonizing. |
 | `upgrade-socket` | Absolute path to the Unix socket used for zero-downtime upgrades. See [Operations](operations.md). |
 | `ca-file` | A CA bundle trusted for **all** outgoing upstream TLS connections. Use when every upstream shares one private CA. For per-upstream CAs, use `ca-cert-path` on the connector instead. |
-| `metrics` | A Prometheus metrics endpoint on its own `IP:port` listener (`listen`), with `enabled false` to switch it off and `groups { dns true  bandwidth true }` for optional series. Off unless the block is present. Plain HTTP with no authentication: bind it to loopback or a trusted network. See [Metrics](metrics.md). |
+| `metrics` | A Prometheus metrics endpoint on its own `IP:port` listener (`listen`), with `enabled false` to switch it off, `tls cert-path="…" key-path="…"` to serve it over TLS, `auth { basic … }`/`auth { bearer … }` to require a credential, `allow { cidr "…" }` to restrict which source addresses may scrape, and `groups { dns true  bandwidth true }` for optional series. Off unless the block is present. A non-loopback `listen` with `tls`/`auth`/`allow` all absent is refused unless `insecure-allow-public true` is set. See [Metrics](metrics.md). |
 | `real-ip-source` | How to resolve the effective client IP. `"peer"` (default), `"xff"` (X-Forwarded-For), or `"header:<name>"` (single named header). Requires `trusted-proxies` when not `"peer"`. See [Real client IP](#real-client-ip) below. |
 
 ### `logging.app-log`
@@ -262,6 +262,16 @@ system {
     metrics {
         listen "127.0.0.1:9090"     // required: IP:port, not shared with any service listener
         enabled true                // optional, default true; false = validated but nothing starts
+        // tls cert-path="…" key-path="…"   // optional; both or neither — serves HTTPS instead of HTTP
+        // auth {                           // optional; exactly one of basic/bearer
+        //     bearer token-file="/etc/flow/metrics-token"   // or token-env="VAR"
+        // }
+        // allow {                          // optional; any number of cidr entries
+        //     cidr "10.0.0.0/8"
+        // }
+        // insecure-allow-public true       // optional, default false; opts out of the refusal
+        //                                  // below (only matters if listen is non-loopback and
+        //                                  // tls/auth/allow are all absent)
         groups {                    // optional; each group defaults to false
             dns true                // flow_dns_* per-hostname DNS discovery series
             bandwidth true          // flow_bandwidth_bytes_total per route
@@ -274,6 +284,12 @@ system {
 |---|---|---|
 | `listen` | *(required)* | `"IP:port"`, IPv4 or IPv6, port not `0` |
 | `enabled` | `true` | `true` / `false` |
+| `tls.cert-path` / `tls.key-path` | — | Paths to a PEM cert/key pair; both or neither |
+| `auth.basic.username` | — | Required with `basic`; a plain value, not a secret |
+| `auth.basic.password-env` / `password-file` | — | Exactly one; see [Metrics](metrics.md#securing-the-endpoint) |
+| `auth.bearer.token-env` / `token-file` | — | Exactly one; see [Metrics](metrics.md#securing-the-endpoint) |
+| `allow.cidr` | unrestricted | Repeatable; a valid IPv4 or IPv6 CIDR range |
+| `insecure-allow-public` | `false` | `true` / `false`; see [Metrics](metrics.md#insecure-allow-public) |
 | `groups.dns` | `false` | `true` / `false` |
 | `groups.bandwidth` | `false` | `true` / `false` |
 

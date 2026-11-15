@@ -4,8 +4,6 @@
 
 Flow can expose Prometheus metrics on a separate endpoint: request counts, latency broken down into where the time went, in-flight requests, long-lived streams (SSE and WebSocket), and optional per-hostname DNS and per-route bandwidth series. This page covers how to turn it on, what is exposed, and how to keep the number of series bounded.
 
-> **Preview.** The metric names and labels below are stable enough to build dashboards on, but the endpoint has no authentication or TLS yet. See [Securing the endpoint](#securing-the-endpoint).
-
 ---
 
 ## Turning it on
@@ -17,6 +15,7 @@ system {
     metrics {
         listen "127.0.0.1:9090"
         // enabled true                 // default; false keeps the block but turns everything off
+        // tls cert-path="…" key-path="…"  // optional — see "Securing the endpoint" below
         // groups {                     // optional families, all off by default
         //     dns true
         //     bandwidth true
@@ -29,16 +28,24 @@ system {
 |---|---|---|
 | `listen` | *(required)* | `IP:port` the metrics endpoint binds to. No hostnames, port `0` is rejected. Must not be the same address as any service listener. |
 | `enabled` | `true` | `false` keeps the block in the file (it is still validated) but Flow starts no metrics listener, registers no metrics, and records nothing. Useful for switching metrics off per environment without deleting the block. |
+| `tls` | — | `cert-path="…" key-path="…"` serves the endpoint over TLS instead of plain HTTP. Both or neither — see [Securing the endpoint](#securing-the-endpoint). |
+| `auth` | — | `basic` or `bearer` — require a credential on every scrape. See [Securing the endpoint](#securing-the-endpoint). |
+| `allow` | unrestricted | `cidr "…"`, repeatable — restrict scrapes to these source ranges. See [Securing the endpoint](#securing-the-endpoint). |
+| `insecure-allow-public` | `false` | Explicit opt-out of the refusal below. See [Securing the endpoint](#securing-the-endpoint). |
 | `groups` | all off | Optional metric families. Each group is a boolean: `dns`, `bandwidth`. Unknown group names are rejected. See [Optional groups](#optional-groups). |
 
 ### Rules
 
-- **File only.** There is no command-line flag or environment variable for metrics; the `metrics` block is the only way to configure it. It lives under `system`, appears once, and each key inside it appears once.
+- **The `metrics` block's own shape is file-only** — there is no command-line flag or environment variable for `listen`, `enabled`, `tls`, or which `groups` are on; the block lives under `system`, appears once, and each key inside it appears once. `auth`'s *credential value* is the one deliberate exception — see [Securing the endpoint](#securing-the-endpoint) for why.
 - **One endpoint for the whole process.** Metrics for every service and route are served from the one `listen` address and told apart by the `service` and `route` labels. When metrics are enabled, every route is recorded; there is no per-route or per-service switch.
 
 > **Planned:** metrics switches for individual policies. See [Roadmap](roadmap.md#observability).
-- **`listen` must be an IP address and port,** IPv4 or IPv6 (`"127.0.0.1:9090"`, `"[::1]:9090"`, `"0.0.0.0:9090"`). Hostnames, Unix sockets and port `0` are rejected, and so are TLS settings for now.
+- **`listen` must be an IP address and port,** IPv4 or IPv6 (`"127.0.0.1:9090"`, `"[::1]:9090"`, `"0.0.0.0:9090"`). Hostnames, Unix sockets and port `0` are rejected.
 - **`listen` must not clash with any service listener.** The same rule as for service listeners applies: two TCP addresses clash when they have the same port and the same IP, or when either one is a wildcard (`0.0.0.0` or `::`) on that port. So `127.0.0.1:9090` and `10.0.0.1:9090` can coexist, but `0.0.0.0:9090` clashes with a service listening on `127.0.0.1:9090`. The check also applies when `enabled` is `false`.
+- **`tls` needs both `cert-path` and `key-path`, or neither.** Same files a service listener's own TLS would use (PEM cert, PEM private key); an unreadable or unparsable file is a startup failure, not a silent fallback to plain HTTP.
+- **`auth` takes exactly one scheme block, `basic` or `bearer`.** Neither, or both, is rejected. See [Securing the endpoint](#securing-the-endpoint) for each scheme's attributes and how its credential is resolved.
+- **`allow` takes any number of `cidr "…"` entries,** each a valid IPv4 or IPv6 CIDR range; an empty `allow { }` block is accepted and means the same as omitting `allow` entirely — unrestricted. Anything other than `cidr` inside it, or an invalid range, is rejected.
+- **A non-loopback `listen` with `tls`, `auth`, and `allow` all absent is refused when the config loads** — that combination would expose route names, traffic volumes, and backend hostnames to anyone who can reach the port, with nothing in front of it at all. Set `insecure-allow-public true` to start anyway; Flow then logs a loud warning on every start reminding you that it did. One of the three present (even just one) downgrades this to the ordinary non-loopback warning below, not a refusal — `insecure-allow-public` only matters for "all three missing." **Only applies when `enabled` isn't `false`** — a disabled block starts no listener at all, so there's nothing to expose and nothing to refuse; a template config kept inert on purpose is validated, not rejected.
 - **`groups` takes only the names `dns` and `bandwidth`,** each set to `true` or `false`. An empty `groups { }` block is allowed and turns nothing on. An unknown group, a non-boolean value, or the same group or block twice is rejected.
 - **Nothing is started or recorded when disabled.** With `enabled false` (or no block at all), Flow opens no extra listener and the request path records nothing.
 - **The metrics listener uses its own thread,** separate from the `threads-per-service` workers.
@@ -48,27 +55,199 @@ Errors are reported when the config loads and name the offending line, for examp
 ```
 metrics listen must be IP:port (for example "127.0.0.1:9090"), got 'localhost:9090'
 metrics listen address 127.0.0.1:9090 conflicts with listener 127.0.0.1:9090 of service "api"; choose a different address or port
+metrics tls: 'cert-path' and 'key-path' must either BOTH be present, or NEITHER
+metrics auth: requires exactly one of 'basic' or 'bearer', got none or several
+'token-env' and 'token-file' are mutually exclusive — set at most one
+metrics allow: unknown entry 'host' — only 'cidr' is accepted
+metrics allow > cidr: 'not-a-cidr' is not a valid CIDR range
+metrics: listen address 0.0.0.0:9090 is not loopback and has none of tls, auth, or allow configured — this would expose Flow's operational data (route names, traffic volumes, backend hostnames) to any address that can reach this port. Add tls, auth, or allow, or set insecure-allow-public true to start anyway (not recommended).
 Unknown metrics group: 'cache' (supported: `dns`, `bandwidth`)
-Unknown metrics setting: 'path' (supported: `listen`, `enabled`, `groups`)
+Unknown metrics setting: 'path' (supported: `listen`, `enabled`, `groups`, `tls`, `auth`, `allow`, `insecure-allow-public`)
 ```
 
 Settings are read once at startup. Changing them requires a restart.
 
-Flow checks at startup that the metrics address (and every service listener) can be bound, and refuses to start with one list of problems if any cannot. `--validate-configs` checks the shape of the `metrics` block without binding anything; add `--validate-configs-with-network` to also check that the addresses can be bound.
+Flow checks at startup that the metrics address (and every service listener) can be bound, and refuses to start with one list of problems if any cannot. `--validate-configs` checks the shape of the `metrics` block without binding anything — but `tls`'s cert/key files and `auth`'s credential (`-env`/`-file`, or the fallback path-env var) are actually resolved, not just shape-checked, the same way a listener's own `cert-path` is actually read: a missing file or an unset environment variable fails `--validate-configs` too, same posture as a bad certificate path. Run it on the host (or with the same environment) the config will actually run under, not a bare syntax check elsewhere. Add `--validate-configs-with-network` to also check that the addresses can be bound.
 
 ---
 
 ## Securing the endpoint
 
-The metrics listener speaks **plain HTTP with no authentication**. Anyone who can reach the port can read route names, traffic volumes, error rates and backend hostnames.
+The metrics listener speaks **plain HTTP with no authentication and no source restriction** unless you set `tls`, `auth`, and/or `allow`. Anyone who can reach the port can read route names, traffic volumes, error rates and backend hostnames unless you do.
 
-- Bind it to loopback (`127.0.0.1`) or to an internal interface, and let your scraper reach it over a trusted network.
-- If `listen` is not a loopback address, Flow logs a warning at startup.
+```kdl
+system {
+    metrics {
+        listen "127.0.0.1:9090"
+        tls cert-path="/etc/flow/certs/metrics.crt" key-path="/etc/flow/certs/metrics.key"
+        auth {
+            bearer token-file="/etc/flow/metrics-token"
+        }
+        allow {
+            cidr "10.0.0.0/8"
+        }
+    }
+}
+```
+
+- **`tls` encrypts the connection** — the same cert/key pair a service listener's own `cert-path`/`key-path` would use.
+- **`auth` requires a credential on every scrape** — exactly one of `basic` or `bearer`, the two schemes Prometheus's own scrape configs support natively (so no custom header is ever needed on the scraper side). A request with a missing or wrong credential gets `401` with a `WWW-Authenticate` header naming the scheme; nothing about `/metrics`'s content is returned.
+- **`allow` restricts which source addresses may scrape at all** — see [`allow`](#allow) below. Checked *before* `auth`: a disallowed peer gets `403` no matter what credential it sends, since there's no credential that makes a disallowed network position allowed.
+- Bind it to loopback (`127.0.0.1`) or to an internal interface, and let your scraper reach it over a trusted network — `tls`/`auth`/`allow` are defense in depth, not a reason to expose the port more broadly.
+- **A non-loopback `listen` with all three absent is refused at config load** — see [`insecure-allow-public`](#insecure-allow-public) below for the explicit opt-out. With at least one of the three set, Flow instead just logs a warning at startup naming whichever is still missing.
 - Use network controls (firewall, security group, Kubernetes `NetworkPolicy`) to restrict who can connect.
+
+### `insecure-allow-public`
+
+```kdl
+metrics {
+    listen "0.0.0.0:9090"
+    insecure-allow-public true
+}
+```
+
+The explicit, named opt-out of the refusal above. Setting it has no effect at all unless
+`listen` is non-loopback *and* `tls`/`auth`/`allow` are all absent — the one combination that
+would otherwise refuse to start. With it set, Flow starts, but logs a loud warning on every
+single start:
+
+```
+metrics endpoint is not bound to a loopback address and has no TLS, authentication, or IP
+allowlist — insecure-allow-public=true overrode Flow's own refusal to start like this; add
+tls, auth, or allow to close this
+```
+
+There is no middle ground between "refused" and "started with a standing warning" — this flag
+is meant to be visible and uncomfortable, not a quiet way to disable the check.
+
+### `allow`
+
+```kdl
+allow {
+    cidr "10.0.0.0/8"
+    cidr "192.168.1.0/24"
+}
+```
+
+Any number of `cidr "…"` entries (IPv4 or IPv6). A scrape from a source address outside every
+listed range gets `403` — no `WWW-Authenticate`, no indication of which scheme (if any) would
+have worked, since the problem is the network path, not the credential. Omitting `allow`
+entirely, or leaving it as an empty `allow { }` block, means every source address may attempt
+to authenticate (or, with no `auth` either, may scrape directly).
+
+### `auth { basic … }`
+
+```kdl
+auth {
+    basic username="admin" password-env="FLOW_METRICS_PASSWORD"
+}
+```
+
+| Attribute | Meaning |
+|---|---|
+| `username` | Required, a plain value — not a secret, so it's just a KDL string. |
+| `password-env="VAR"` | `VAR`'s value, read from the environment, **is** the password. |
+| `password-file="/path"` | Read the password from this file (trailing newline stripped). |
+
+Exactly one of `password-env`/`password-file`; set both and Flow refuses to load.
+
+**What to actually put in `VAR` or the file: the raw password, nothing else.** Not
+`username:password`, not base64, not `Basic <anything>` — Flow does that encoding itself when
+it compares against what the client sent (see [Wire format](#wire-format) below, which is
+about the *client's* request, not this value). For the example above:
+
+```bash
+export FLOW_METRICS_PASSWORD=hunter2
+```
+
+or, for `password-file="/etc/flow/metrics-password"`, a file containing exactly:
+
+```
+hunter2
+```
+
+### `auth { bearer … }`
+
+```kdl
+auth {
+    bearer token-file="/etc/flow/metrics-token"
+}
+```
+
+| Attribute | Meaning |
+|---|---|
+| `token-env="VAR"` | `VAR`'s value, read from the environment, **is** the token. |
+| `token-file="/path"` | Read the token from this file (trailing newline stripped). |
+
+Exactly one of `token-env`/`token-file`; set both and Flow refuses to load.
+
+**What to actually put in `VAR` or the file: the raw token, nothing else.** Not `Bearer
+<token>` — just the token itself; Flow adds the `Bearer ` prefix expectation on its own side
+when checking the client's request (see [Wire format](#wire-format) below). For the example
+above, `/etc/flow/metrics-token` should contain exactly:
+
+```
+s3cr3t-token-value
+```
+
+and with `token-env="FLOW_METRICS_TOKEN"` instead:
+
+```bash
+export FLOW_METRICS_TOKEN=s3cr3t-token-value
+```
+
+### Wire format
+
+The scheme blocks above configure the credential Flow checks *against*; this is the request
+Flow checks *for*. Needed only when talking to the endpoint directly — Prometheus's
+`bearer_token`/`bearer_token_file`/`basic_auth` scrape-config options (see
+[Scraping](#scraping) below) already produce the right header, so this section matters for
+`curl` or a custom scraper, not for Prometheus itself.
+
+| Scheme | Required header | Case-sensitive? |
+|---|---|---|
+| `bearer` | `Authorization: Bearer <token>` — capital `B`, exactly one space | Yes — `bearer <token>` and `BEARER <token>` both fail, the same as a wrong token |
+| `basic` | `Authorization: Basic <base64(username:password)>` — the standard HTTP Basic encoding | Yes, same as `bearer` |
+
+A missing `Authorization` header, a malformed one, or one in the wrong case all fail exactly
+the same way as a wrong credential: `401` with `WWW-Authenticate` naming the configured scheme.
+There is no separate "malformed request" status.
+
+### Resolution order
+
+Each credential (`bearer`'s token, `basic`'s password) is resolved by exactly one rule, checked
+in this order — stated here once, in full, rather than left to assemble from the attribute
+tables above:
+
+1. `token-env` (or `password-env`) is set → that environment variable's value **is** the
+   secret. Unset at startup → Flow refuses to start.
+2. Else, `token-file` (or `password-file`) is set in KDL → read the secret from that literal
+   path. Unreadable → Flow refuses to start.
+3. Else (neither given in KDL at all) → read the path itself from `FLOW_METRICS_TOKEN_FILE`
+   (or `FLOW_METRICS_PASSWORD_FILE`), then read the secret from that path. Env var unset, or
+   the path it names unreadable → Flow refuses to start.
+4. Setting both `-env` and `-file` on the same scheme is rejected when the config loads — never
+   "one silently wins."
+
+Every outcome here is a startup-time failure, never a silent fallback to "no authentication":
+an unresolvable credential behaves exactly like an unreadable TLS certificate.
+
+### Why there's no plain inline `password`/`token`
+
+Every other secret-bearing setting in Flow (`header-transform`'s `upsert` value, for one) accepts a literal value in the KDL file, with a documented "it sits in plain text, protect the file" caveat. `auth`'s credential is deliberately **not** offered that way: unlike a backend-facing header value, this credential gates who can read Flow's own operational data, and this feature exists specifically to close that gap — an inline option would just reopen it for anyone who reaches for the easy path. Source it from a file or the environment instead.
+
+### Supplying the file path without touching the KDL file
+
+Omit `token-file`/`password-file` from KDL entirely and set the matching environment variable instead — step 3 of [Resolution order](#resolution-order) above, the same two-step pattern `--license-file`/`FLOW_LICENSE_FILE` already uses: the env var is consulted only when the KDL attribute is absent, and only names a path — it never holds the secret directly (that's what `token-env`/`password-env` are for).
+
+| Scheme | KDL path attribute | Environment fallback for the path |
+|---|---|---|
+| `bearer` | `token-file` | `FLOW_METRICS_TOKEN_FILE` |
+| `basic` | `password-file` | `FLOW_METRICS_PASSWORD_FILE` |
 
 The listener serves `GET /metrics` only. Any other path returns `404` and any other method on `/metrics` returns `405` with `Allow: GET`. Responses are gzip-compressed when the scraper sends `Accept-Encoding: gzip`, which Prometheus does by default. The endpoint runs on its own listener and thread, so scrapes never compete with proxy traffic for worker threads.
 
-> **Planned:** TLS and authentication for this listener. See [Roadmap](roadmap.md#observability).
+> **Planned:** mTLS client-cert verification for this listener. See [Roadmap](roadmap.md#observability).
 
 ---
 
@@ -96,6 +275,37 @@ scrape_configs:
 ```
 
 `/metrics` is Prometheus's default path, so no `metrics_path` is needed.
+
+With `tls` configured, set `scheme: https`; `insecure_skip_verify` is only for a self-signed
+cert trusted out of band, never for production:
+
+```yaml
+scrape_configs:
+  - job_name: flow
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true   # or ca_file: /path/to/ca.pem for a real chain
+    static_configs:
+      - targets: ["flow-host:9090"]
+```
+
+With `auth { basic … }` or `auth { bearer … }` configured, Prometheus's own native scrape-config
+support covers both — no custom header needed:
+
+```yaml
+scrape_configs:
+  - job_name: flow
+    basic_auth:
+      username: admin
+      password: hunter2          # or password_file: /path/to/password
+    static_configs:
+      - targets: ["flow-host:9090"]
+
+  - job_name: flow
+    bearer_token_file: /path/to/token   # or bearer_token: "…" inline
+    static_configs:
+      - targets: ["flow-host:9090"]
+```
 
 ---
 
@@ -542,4 +752,4 @@ These are not exposed today:
 - Per-backend state (healthy, unhealthy, circuit open) and circuit-breaker state as metrics.
 - Per-policy metrics (calls, outcomes and duration for individual policies, enabled per policy instance), cache hit/miss counters, and authentication failures as their own count. Size-limit blocks, request and response, are counted; see [Size limits](#size-limits).
 
-> **Planned:** per-backend and per-policy metrics, and TLS and authentication for the endpoint. See [Roadmap](roadmap.md#observability).
+> **Planned:** per-backend and per-policy metrics, and mTLS client-cert verification for the endpoint (TLS and basic/bearer authentication are already available — see [Securing the endpoint](#securing-the-endpoint)). See [Roadmap](roadmap.md#observability).
