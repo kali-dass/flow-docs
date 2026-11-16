@@ -1,5 +1,6 @@
 <p align="center"><img src="images/Flow_light_background_logo.png" alt="Flow Unified Gateway" width="400" height="200"></p>
-<h2 align="center">Unified AI Gateway (LLM · MCP · A2A) & API Gateway<br>With a Skills & Agents Registry and a Model Catalogue</h2>
+<h2 align="center">Flow Unified Gateway</h2>
+<h3 align="center"> <br> AI (LLM · MCP · A2A) Gateway & API Gateway<br>With Registry for Skills & Agents<br> And Model Catalogue </h3>
 <p align="center"><img src="images/Flow_Diagram.jpg" alt="Flow Unified Gateway Overview" /></p>
 <h3>Purpose-built to be hyper-fast, secure, and extremely lightweight</h3>
 
