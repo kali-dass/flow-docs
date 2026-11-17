@@ -64,6 +64,24 @@ Closed ──[error rate ≥ threshold, min_requests met]──> Open
 **What counts as a failure**: HTTP 5xx responses and connection-level failures (timeout, reset,
 refused). 4xx responses are not counted — they represent client errors, not backend failures.
 
+## DNS-resolved connectors: one breaker per address
+
+"Per backend" means per resolved network address, not per connector line. A connector written
+as a bare hostname (`"api.example.com:443"`) is [DNS-discovered](../dns.md) into every A/AAAA
+address it resolves to, and each of those addresses gets its own independent circuit — its own
+window, its own state. There is no hostname-level aggregation.
+
+This matters for `min-requests` and `error-threshold-pct`: traffic (and failures) to a
+DNS-backed connector is spread across its resolved addresses by the load balancer, so a fixed
+request budget is diluted N-way rather than landing on one tracked circuit. Two failing
+requests against a hostname that resolves to three addresses will likely land on different
+addresses — one failure each — and neither crosses a `min-requests 2` threshold on its own, even
+though the combined error rate looks like it should have tripped something.
+
+To reason about or test tripping behavior deterministically, pin the connector to a single
+static address instead of a hostname, or send enough sustained failing traffic that every
+resolved address individually crosses the threshold.
+
 ## Fail-open
 
 If all backends on a connector are simultaneously circuit-open, Flow routes requests anyway

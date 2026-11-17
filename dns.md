@@ -82,7 +82,7 @@ connectors {
 Compared with leaving the balancing to clients (plain DNS round-robin):
 
 - **The choice is made per request, inside Flow.** With client-side DNS round-robin, each client picks an address from a cached answer and then keeps its connection for a long time, so load is only as even as resolver caching and keep-alive allow.
-- **Failed backends stop receiving traffic quickly** when combined with [active health checking](configuration.md#health-checking) and [circuit breaking](configuration.md#circuit-breaking), rather than waiting for DNS TTLs to expire.
+- **Failed backends stop receiving traffic quickly** when combined with [active health checking](configuration.md#health-checking) and [circuit breaking](configuration.md#circuit-breaking), rather than waiting for DNS TTLs to expire. Circuit breaking tracks each resolved address independently — see [DNS-resolved connectors: one breaker per address](policies/circuit-breaker.md#dns-resolved-connectors-one-breaker-per-address).
 - **Address changes are picked up without a restart** (see below).
 
 Things to keep in mind:
