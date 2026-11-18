@@ -5,7 +5,7 @@
 > **Making a decision?** See [Design Decisions](design-decisions.md)
 > **Know what to expect?** See [How Flow Behaves](behavior.md)
 
-This guide takes you from an empty directory to a working proxy in a few minutes.
+This guide takes you from an empty directory to a working gateway in a few minutes.
 
 ## Supported operating systems
 

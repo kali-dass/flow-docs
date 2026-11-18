@@ -105,7 +105,7 @@ for making the backend see a different hostname, not for picking a different bac
 
 ## Common uses
 
-**Identify the proxy to your backend, and strip internal headers before they reach it:**
+**Identify the gateway to your backend, and strip internal headers before they reach it:**
 
 ```kdl
 upstream-request {

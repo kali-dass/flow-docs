@@ -2,7 +2,7 @@
 
 > **See also:** [How Flow Behaves](behavior.md) • [Roadmap](roadmap.md) • [FAQ](faq.md)
 
-Flow is an advanced reverse proxy growing into a gateway for APIs, LLMs, MCP servers, and AI agents. This page shows where it sits in an architecture and what to run alongside it. For what is available and what is planned, see the [Roadmap](roadmap.md).
+Flow is a high-performance API and AI gateway: an API gateway today, growing into a gateway for LLMs, MCP servers, and AI agents. This page shows where it sits in an architecture and what to run alongside it. For what is available and what is planned, see the [Roadmap](roadmap.md).
 
 ---
 

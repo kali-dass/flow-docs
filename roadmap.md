@@ -4,7 +4,7 @@ This is the one place that states what Flow can do today and what is planned. Ot
 
 Flow is a licensed product: running it requires a valid license file. See [Licensing](license.md).
 
-Flow is an advanced reverse proxy today. The planned direction is an API gateway first, then an LLM gateway, an MCP gateway, an agent-to-agent (A2A) gateway, model management, and registries for MCP servers, A2A agents, and skills. Each builds on the same foundation: the routing, security, and observability below.
+Flow is a high-performance API gateway today. The planned direction is an LLM gateway, then an MCP gateway, an agent-to-agent (A2A) gateway, model management, and registries for MCP servers, A2A agents, and skills. Each builds on the same foundation: the routing, security, and observability below.
 
 **Statuses**
 
@@ -21,8 +21,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 
 | Capability | Status | Notes |
 |---|---|---|
-| Advanced reverse proxy | Available | The foundation for everything below: routing, load balancing, security, and observability. |
-| API gateway | Planned | The capabilities marked Planned in the sections below. |
+| API gateway | Available | Routing, load balancing, authentication, rate limiting, transformation, caching, and observability — the foundation for everything below. Further API gateway capabilities are marked Planned in the sections below. |
 | LLM gateway | Planned | Token-aware rate limiting and spend limits, guardrails, model routing, provider fallover, AI response caching. |
 | Model management | Planned | The organization's central list of the models it has purchased, with control over which teams and people may use which, and a record of how much each has used. Routing, fallover, spend limits and rate limits refer to it. |
 | MCP gateway | Planned | Routing, tool-level access control and rate limits, MCP-aware guardrails. |

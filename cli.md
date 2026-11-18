@@ -6,7 +6,7 @@
 > **Looking for something specific?** [Configuration Reference](configuration.md) • [Operations](operations.md) • [Performance](performance.md)
 
 Flow is started from the command line and configured from a KDL file. The command line
-handles *how this process runs*; the config file describes *what the proxy does*.
+handles *how this process runs*; the config file describes *what the gateway does*.
 
 ```bash
 flow --config-kdl /etc/flow/config.kdl

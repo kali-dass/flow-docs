@@ -5,7 +5,7 @@
 <h3>Purpose-built to be hyper-fast, secure, and extremely lightweight</h3>
 
 
-Flow is a unified gateway for API, LLM, MCP, and A2A traffic — one fast, secure, lightweight proxy instead of a different tool per protocol. It sits in front of your services, handling routing, auth, rate limiting, caching, and observability so your applications don't have to. **Today, Flow is an API gateway; the LLM, MCP, and A2A gateways and the skills/agent registries are next** — see the [Roadmap](roadmap.md).
+Flow is a unified gateway for API, LLM, MCP, and A2A traffic — one fast, secure, lightweight gateway instead of a different tool per protocol. It sits in front of your services, handling routing, auth, rate limiting, caching, and observability so your applications don't have to. **Today, Flow is an API gateway; the LLM, MCP, and A2A gateways and the skills/agent registries are next** — see the [Roadmap](roadmap.md).
 
 > **Pre-release software.** Flow has not had a stable release yet, so configuration and behavior may change between builds. Once it does, changes that break existing configurations will be called out explicitly.
 
@@ -110,7 +110,7 @@ Looking for a short answer to one question? Start with the [FAQ](faq.md).
 ### Start here — I want it running
 | Guide | What it covers |
 |---|---|
-| [Getting started](getting-started.md) | Install, run, and verify your first proxy |
+| [Getting started](getting-started.md) | Install, run, and verify your first gateway |
 | [Examples](examples.md) | Complete, working KDL configs you can download and run as is |
 | [Technical Overview](technical-overview.md) | How does it work? Core concepts and the request lifecycle |
 
