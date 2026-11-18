@@ -97,43 +97,53 @@ The [Roadmap](roadmap.md) lists what is available and what is planned.
 
 ## Documentation
 
-### Start here
+Looking for a short answer to one question? Start with the [FAQ](faq.md).
+
+### Decide — should I use this?
 | Guide | What it covers |
 |---|---|
-| [Getting started](getting-started.md) | I want to run it: install, run, and verify your first proxy |
+| [Where Flow Fits](scope.md) | Is Flow the right tool? Where it sits alongside a service mesh, load balancer, WAF, and cache |
+| [Design Decisions](design-decisions.md) | Which option should I choose? Protocol, load balancing, policies, routing patterns |
+| [Comparisons](comparisons/README.md) | Measured against other gateways on identical hardware |
+| [Performance](performance.md) | Measured throughput, latency, and memory — to judge whether Flow meets your numbers |
+
+### Start here — I want it running
+| Guide | What it covers |
+|---|---|
+| [Getting started](getting-started.md) | Install, run, and verify your first proxy |
 | [Examples](examples.md) | Complete, working KDL configs you can download and run as is |
 | [Technical Overview](technical-overview.md) | How does it work? Core concepts and the request lifecycle |
-| [Design Decisions](design-decisions.md) | Which option should I choose? Protocol, load balancing, policies, routing patterns |
 
-### Reference
+### Write a config
+
+Syntax:
+
 | Guide | What it covers |
 |---|---|
 | [Configuration](configuration.md) | Full KDL reference: system, logging, services, listeners, connectors |
 | [Command line](cli.md) | Every flag, and how the CLI and config file interact |
-| [Routing](routing.md) | Matching requests to routes, and how ties are broken |
-| [DNS Resolution](dns.md) | Hostname connectors, background refresh, and what Flow does when DNS misbehaves |
-| [Protocols](protocols.md) | HTTP/1.1, HTTP/2, h2c: technical details and performance |
-| [Non-REST Protocols](non-rest-protocols.md) | WebSocket, gRPC, SSE, GraphQL, JSON-RPC |
-| [Policies](policies.md) | Rate limiting, token authentication, IP restriction, response caching, header rewriting, timing headers, and more |
-| [Metrics](metrics.md) | The Prometheus endpoint: every metric, label, and setting |
-| [Performance](performance.md) | Benchmarks, safe operating rates, and tuning |
-| [Operations](operations.md) | Running in production, zero-downtime upgrades, logging |
-| [Licensing](license.md) | The license file, where Flow looks for it, and what happens at expiration |
 
-### Fit and behavior
+What you can configure:
+
 | Guide | What it covers |
 |---|---|
-| [How Flow Behaves](behavior.md) | What to expect when you run Flow: failures, rate limiting across instances, connections, streaming, WebSocket, license check |
-| [Where Flow Fits](scope.md) | Is Flow the right tool? Where it sits alongside a service mesh, load balancer, WAF, and cache |
-| [FAQ](faq.md) | Short answers with links to the detail |
+| [Routing](routing.md) | Matching requests to routes, and how ties are broken |
+| [Policies](policies.md) | Every policy: what each does, its options, and which phase it runs in |
+| [Protocols](protocols.md) | HTTP/1.1, HTTP/2, h2c: technical details and performance |
+| [Non-REST Protocols](non-rest-protocols.md) | WebSocket, gRPC, SSE, GraphQL, JSON-RPC |
+| [DNS Resolution](dns.md) | Hostname connectors, background refresh, and what Flow does when DNS misbehaves |
 
-### Roadmap and changes
+### Run it in production
+| Guide | What it covers |
+|---|---|
+| [Operations](operations.md) | Running in production, zero-downtime upgrades, logging |
+| [Metrics](metrics.md) | The Prometheus endpoint: every metric, label, and setting |
+| [Performance](performance.md) | Safe operating rates, capacity planning, and tuning |
+| [How Flow Behaves](behavior.md) | What to expect at runtime: failures, rate limiting across instances, connections, streaming, WebSocket, license check |
+| [Licensing](license.md) | The license file, where Flow looks for it, and what happens at expiration |
+
+### What's available
 | Guide | What it covers |
 |---|---|
 | [Roadmap](roadmap.md) | What is available, and what is planned |
 | [Changelog](changelog.md) | Release notes: what shipped and when, by version |
-
-### Comparisons
-| Guide | What it covers |
-|---|---|
-| [Comparisons](comparisons/README.md) | Measured against other gateways on identical hardware |
