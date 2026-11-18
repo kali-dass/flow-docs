@@ -38,6 +38,10 @@ Client
    | (applies upstream-response modifiers: header rewriting, timing, etc.)
    ↓
 [Client] ← response sent back
+   |
+   | (response is complete — nothing below can change it)
+   ↓
+[Logging] ← records the request: metrics, and any logging filters (e.g. file-log)
 ```
 
 ## Core Concepts
@@ -127,13 +131,14 @@ load-balance {
 
 ### Policies
 
-**Policies** are filters that run before or after proxying:
+**Policies** are filters that run before proxying, after proxying, or once the response is complete:
 
 - **Rate limiting**: Max requests per second (global, per-IP, or per-path)
 - **IP blocking**: Block requests from CIDR ranges
 - **Request header rewriting**: Add, remove, or modify headers
 - **Response header rewriting**: Inject or strip response headers
 - **Timing headers**: Add latency measurements for debugging
+- **Access logging**: Write one record per request, after the response is sent
 
 ```kdl
 path-control {
@@ -151,7 +156,14 @@ path-control {
         filter kind="timing-header"
     }
 }
+logging {
+    filter kind="file-log" destination="access"
+}
 ```
+
+`path-control` holds the three phases that can still affect the request or response; the separate `logging` block
+runs after the response is complete and only observes. [Policies](policies.md) covers all four attachment points
+and which policy belongs in each.
 
 ## Request Lifecycle
 
@@ -166,9 +178,12 @@ Every request follows the same path:
 7. **Forward request** — Send request to backend, receive response
 8. **Policy: Post-upstream** — Apply response-phase policies (header rewriting, timing)
 9. **Respond to client** — Send response back to client
-10. **Close or reuse** — Close connection or keep alive for next request
+10. **Log** — Record the request now that the response is complete: metrics, and any [`logging` filters](policies.md) such as [`file-log`](policies/file-log.md)
+11. **Close or reuse** — Close connection or keep alive for next request
 
 All steps use the configuration from the matching route. If multiple steps require the same information (e.g., request headers), it's parsed once and reused.
+
+Step 10 runs after the client already has the response, so nothing in it can change what was sent — a `logging` filter observes the request, it cannot alter or delay it. A request that never matched a route still reaches this step: it is recorded, and a service-level `logging` filter still runs for it (a route-level one cannot, since no route was selected).
 
 ## Key Design Choices
 
