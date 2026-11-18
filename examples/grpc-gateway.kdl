@@ -1,0 +1,32 @@
+// A cleartext gRPC (h2c) gateway. There's no public gRPC service to point
+// this at the way the other examples use httpbin.org for REST, so the
+// backend below is a placeholder — point it at your own gRPC service.
+//
+// `allowed-protocols "grpc"` implies POST + HTTP/2, never detected from
+// traffic. See docs-public/non-rest-protocols.md for the full gRPC
+// reference, including the TLS variant (grpcs-gateway.kdl).
+//
+// Run it:
+//   export FLOW_LICENSE_FILE=/path/to/license.json
+//   flow --config-kdl grpc-gateway.kdl
+//   grpcurl -plaintext -d '{}' localhost:8080 your.package.YourService/YourMethod
+services {
+    GrpcDemo {
+        listeners {
+            "0.0.0.0:8080" offer-h2=true
+        }
+        routes {
+            route {
+                name "grpc-service"
+                match {
+                    path-prefix "/"
+                }
+                allowed-protocols "grpc"
+                connectors {
+                    // Replace with your own gRPC backend's address.
+                    "10.0.0.5:50051" proto="grpc"
+                }
+            }
+        }
+    }
+}

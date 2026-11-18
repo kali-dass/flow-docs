@@ -1,0 +1,49 @@
+// A DNS-discovered upstream — a bare hostname connector instead of a
+// literal IP, combined with active health checking and a circuit breaker.
+// Backend is httpbin.org, a public echo service; point `connectors` at
+// your own service's hostname instead.
+//
+// Flow re-resolves the hostname in the background and keeps every
+// resolved address as a backend; health-check and circuit-breaker each
+// remove a failing one independently. See docs-public/dns.md,
+// docs-public/policies/health-checking.md, and
+// docs-public/policies/circuit-breaker.md for the full detail.
+//
+// Run it:
+//   export FLOW_LICENSE_FILE=/path/to/license.json
+//   flow --config-kdl dns-discovered-upstream.kdl
+//   curl http://localhost:8080/anything
+services {
+    Demo {
+        listeners {
+            "0.0.0.0:8080"
+        }
+        routes {
+            route {
+                name "anything"
+                match {
+                    path-prefix "/"
+                }
+                allowed-methods "GET"
+                allowed-protocols "http" "h1"
+                connectors {
+                    load-balance {
+                        selection "RoundRobin"
+                        health-check "Active"
+                        health-check-path "/status/200"
+                        circuit-breaker {
+                            error-threshold-pct 50
+                            window-secs 60
+                            min-requests 5
+                            cooldown-secs 30
+                        }
+                    }
+                    // A bare hostname — DNS-discovered, not a literal address.
+                    // Add tls-sni="httpbin.org" (and use port 443) if the
+                    // backend needs TLS.
+                    "httpbin.org:80"
+                }
+            }
+        }
+    }
+}

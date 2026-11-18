@@ -6,7 +6,7 @@
 
 ## Supported Protocols
 
-Flow supports HTTP/1.1, HTTP/2, and cleartext HTTP/2 (h2c) on both client-facing and upstream sides. TLS can be used optionally on either hop.
+Flow supports HTTP/1.1, HTTP/2, and cleartext HTTP/2 (h2c) on both client-facing and upstream sides. TLS can be used optionally on either hop. For a complete, runnable TLS-termination config, see [`examples/tls-termination.kdl`](examples/tls-termination.kdl) in [Examples](examples.md).
 
 | Protocol | Client→Flow | Flow→Upstream | Encryption | Notes |
 |---|---|---|---|---|

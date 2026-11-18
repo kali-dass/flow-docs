@@ -1,0 +1,34 @@
+// gRPC over TLS, both hops — clients reach Flow over TLS, and Flow reaches
+// the backend over TLS too. There's no public gRPC service to point this
+// at the way the other examples use httpbin.org for REST, so the backend
+// below is a placeholder — point it at your own gRPC service.
+//
+// Needs a certificate and key — see examples.md for a one-line command to
+// generate a pair for trying this out. `allowed-protocols "grpcs"` implies
+// POST + HTTP/2 + TLS, never detected from traffic. See
+// docs-public/non-rest-protocols.md for the full gRPC reference.
+//
+// Run it:
+//   export FLOW_LICENSE_FILE=/path/to/license.json
+//   flow --config-kdl grpcs-gateway.kdl
+//   grpcurl -insecure -d '{}' localhost:8443 your.package.YourService/YourMethod
+services {
+    GrpcsDemo {
+        listeners {
+            "0.0.0.0:8443" cert-path="./cert.pem" key-path="./key.pem" offer-h2=true
+        }
+        routes {
+            route {
+                name "grpc-service"
+                match {
+                    path-prefix "/"
+                }
+                allowed-protocols "grpcs"
+                connectors {
+                    // Replace with your own gRPC backend's address and SNI name.
+                    "10.0.0.5:50051" tls-sni="your-backend.internal" proto="grpcs"
+                }
+            }
+        }
+    }
+}

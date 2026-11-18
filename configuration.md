@@ -1089,7 +1089,11 @@ prior-knowledge h2c or the connection fails.
 > | `proto="grpcs"` and `tls-sni="<name>"` | gRPC over TLS | `proto="h2-only" tls-sni="<name>"` |
 >
 > Both are strict, like `h2-only`: a backend that does not speak HTTP/2 fails with a 502. `proto="grpc"` cannot be combined with
-> `tls-sni`, and `proto="grpcs"` requires it and cannot be combined with `allow-h2c`. The longer spellings stay valid.
+> `tls-sni`, and `proto="grpcs"` cannot be combined with `allow-h2c`. The longer spellings stay valid.
+>
+> `proto="grpcs"` needs an SNI name — the name checked against the backend's certificate. A connector written as a
+> hostname uses that hostname, so `tls-sni` is optional there; a connector written as an IP address has no name to use
+> and is refused without it.
 
 > #### `h2-only` is strict — it will not silently fall back to HTTP/1.1
 >

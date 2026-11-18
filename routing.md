@@ -6,7 +6,8 @@
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Policies](policies.md) • [Performance](performance.md)
 
 Flow picks exactly one route per request. This page covers the matchers you can write and
-how Flow decides which route wins when several match.
+how Flow decides which route wins when several match. For a complete, runnable config, see
+[`examples/rest-api-gateway.kdl`](examples/rest-api-gateway.kdl) in [Examples](examples.md).
 
 ## The `match` block
 

@@ -1,0 +1,35 @@
+// TLS termination — Flow accepts HTTPS from clients and talks plain HTTP
+// to the backend.
+//
+// This is the hybrid pattern: TLS from clients, cleartext to a backend on
+// a trusted network. The client hop is encrypted; the upstream hop is not.
+//
+// Needs a certificate and key — see examples.md for a one-line command to
+// generate a pair for trying this out.
+//
+// Run it:
+//   export FLOW_LICENSE_FILE=/path/to/license.json
+//   flow --config-kdl tls-termination.kdl
+//   curl -k https://localhost:8443/anything
+services {
+    Demo {
+        listeners {
+            "0.0.0.0:8443" cert-path="./cert.pem" key-path="./key.pem" offer-h2=true
+        }
+        routes {
+            route {
+                name "anything"
+                match {
+                    path-prefix "/"
+                }
+                allowed-methods "GET"
+                allowed-protocols "https" "h1" "h2"
+                connectors {
+                    // No tls-sni and no proto — plain HTTP/1.1 to the backend.
+                    // Replace with your own backend's address.
+                    "httpbin.org:80"
+                }
+            }
+        }
+    }
+}

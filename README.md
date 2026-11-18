@@ -89,32 +89,11 @@ The [Roadmap](roadmap.md) lists what is available and what is planned.
 ## Get started
 
 1. Get a license file. See [Licensing](license.md).
-2. Write a short configuration file. The [Getting Started](getting-started.md) guide walks through one — or try this, which routes everything to [httpbin.org](https://httpbin.org/anything):
-
-   ```kdl
-   services {
-       Demo {
-           listeners {
-               "0.0.0.0:8080"
-           }
-           routes {
-               route {
-                   name "anything"
-                   match {
-                       path-prefix "/"
-                   }
-                   allowed-methods "GET"
-                   allowed-protocols "http" "h1"
-                   connectors {
-                       "httpbin.org:443" tls-sni="httpbin.org"
-                   }
-               }
-           }
-       }
-   }
-   ```
-
-3. Point Flow at the license file from step 1 — `export FLOW_LICENSE_FILE=/path/to/license.json` is the simplest way (or pass `--license-file` instead, or drop it in as `./license.json` with no flag or env var at all; see [Licensing](license.md) for the full precedence). Then run `flow --config-kdl myconfig.kdl`, and `curl http://localhost:8080/anything`.
+2. Get a config file. The [Getting Started](getting-started.md) guide walks through writing
+   one, or start from [`examples/quickstart.kdl`](examples/quickstart.kdl) — the simplest
+   working config, routing everything to [httpbin.org](https://httpbin.org/anything). See
+   [Examples](examples.md) for more, including TLS, policies, and gRPC.
+3. Point Flow at the license file from step 1 — `export FLOW_LICENSE_FILE=/path/to/license.json` is the simplest way (or pass `--license-file` instead, or drop it in as `./license.json` with no flag or env var at all; see [Licensing](license.md) for the full precedence). Then run `flow --config-kdl quickstart.kdl`, and `curl http://localhost:8080/anything`.
 
 ## Documentation
 
@@ -122,6 +101,7 @@ The [Roadmap](roadmap.md) lists what is available and what is planned.
 | Guide | What it covers |
 |---|---|
 | [Getting started](getting-started.md) | I want to run it: install, run, and verify your first proxy |
+| [Examples](examples.md) | Complete, working KDL configs you can download and run as is |
 | [Technical Overview](technical-overview.md) | How does it work? Core concepts and the request lifecycle |
 | [Design Decisions](design-decisions.md) | Which option should I choose? Protocol, load balancing, policies, routing patterns |
 

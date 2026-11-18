@@ -1,0 +1,33 @@
+// Quickstart — the smallest working Flow config.
+//
+// One service, one listener, one route: everything is forwarded to
+// httpbin.org, a public echo service, over plain HTTP. Use this to verify
+// Flow runs and routes correctly before building anything more.
+//
+// Run it:
+//   export FLOW_LICENSE_FILE=/path/to/license.json
+//   flow --config-kdl quickstart.kdl
+//   curl http://localhost:8080/anything
+//
+// See examples.md for the rest of the examples, and tls-termination.kdl for
+// the next step once you need TLS.
+services {
+    Demo {
+        listeners {
+            "0.0.0.0:8080"
+        }
+        routes {
+            route {
+                name "anything"
+                match {
+                    path-prefix "/"
+                }
+                allowed-methods "GET"
+                allowed-protocols "http" "h1"
+                connectors {
+                    "httpbin.org:443" tls-sni="httpbin.org"
+                }
+            }
+        }
+    }
+}

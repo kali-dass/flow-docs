@@ -29,7 +29,9 @@ flow --help
 
 ## Your first config
 
-Flow is configured with a single [KDL](https://kdl.dev) file. Create `myconfig.kdl`:
+Flow is configured with a single [KDL](https://kdl.dev) file. Create `myconfig.kdl`, or start
+from [`examples/quickstart.kdl`](examples/quickstart.kdl) — see [Examples](examples.md) for more
+complete, working configs.
 
 ```kdl
 system {

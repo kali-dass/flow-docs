@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md) or [Protocols](protocols.md) for HTTP/1.1, HTTP/2, and h2c.
 
-This page covers Flow's support for protocols and traffic patterns beyond plain REST: WebSocket, gRPC, Server-Sent Events (SSE), GraphQL, JSON-RPC, and similar.
+This page covers Flow's support for protocols and traffic patterns beyond plain REST: WebSocket, gRPC, Server-Sent Events (SSE), GraphQL, JSON-RPC, and similar. For complete, runnable gRPC configs, see [`examples/grpc-gateway.kdl`](examples/grpc-gateway.kdl) (cleartext) and [`examples/grpcs-gateway.kdl`](examples/grpcs-gateway.kdl) (TLS) in [Examples](examples.md).
 
 ---
 
@@ -137,7 +137,7 @@ gRPC runs over HTTP/2. Flow can proxy both gRPC variants:
 | Variant | Transport | Config |
 |---|---|---|
 | `grpc` | HTTP/2 cleartext (h2c) | `proto="grpc"` (same as `proto="h2-only"` + `allow-h2c=true`) |
-| `grpcs` | HTTP/2 over TLS | `proto="grpcs"` + `tls-sni` (same as `proto="h2-only"` + `tls-sni`) |
+| `grpcs` | HTTP/2 over TLS | `proto="grpcs"` + `tls-sni` (same as `proto="h2-only"` + `tls-sni`). On a hostname connector `tls-sni` is optional — the hostname is used. |
 
 The two hops are independent, so all four combinations work:
 
@@ -151,7 +151,7 @@ The two hops are independent, so all four combinations work:
 Flow does not detect gRPC. You declare it twice, and each declaration fixes one hop:
 
 - **On the route**, `allowed-protocols "grpc"` (clients on cleartext HTTP/2) or `"grpcs"` (clients on TLS). List both to accept either. It implies `POST` and HTTP/2, so you no longer write `allowed-methods "POST"` or `allowed-protocols "h2"`, and Flow refuses a client on the wrong transport.
-- **On the connector**, `proto="grpc"` (cleartext to the backend) or `proto="grpcs"` (TLS to the backend, with `tls-sni`). A gRPC route needs every connector to be HTTP/2 only.
+- **On the connector**, `proto="grpc"` (cleartext to the backend) or `proto="grpcs"` (TLS to the backend). A gRPC route needs every connector to be HTTP/2 only. `proto="grpcs"` checks the backend's certificate against an SNI name: a hostname connector uses its own hostname, so `tls-sni` is only needed to override it or when the connector is an IP address.
 
 The longer `proto="h2-only"` spellings are equivalent for connectors.
 

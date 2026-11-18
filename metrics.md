@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md). The full `system` reference is in the [Configuration Reference](configuration.md#system-block).
 
-Flow can expose Prometheus metrics on a separate endpoint: request counts, latency broken down into where the time went, in-flight requests, long-lived streams (SSE and WebSocket), and optional per-hostname DNS and per-route bandwidth series. This page covers how to turn it on, what is exposed, and how to keep the number of series bounded.
+Flow can expose Prometheus metrics on a separate endpoint: request counts, latency broken down into where the time went, in-flight requests, long-lived streams (SSE and WebSocket), and optional per-hostname DNS and per-route bandwidth series. This page covers how to turn it on, what is exposed, and how to keep the number of series bounded. For a complete, runnable config, see [`examples/metrics-enabled.kdl`](examples/metrics-enabled.kdl) in [Examples](examples.md).
 
 ---
 

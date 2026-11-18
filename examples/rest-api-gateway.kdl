@@ -1,0 +1,63 @@
+// A fuller REST API gateway — TLS, authentication, rate limiting, and CORS
+// together on one route. Backend is httpbin.org, a public echo service;
+// point `connectors` at your own service instead.
+//
+// Needs a certificate and key — see examples.md for a one-line command to
+// generate a pair for trying this out. Replace the `issuer` block's
+// `jwks-uri`/`audience` with your own identity provider's details; without
+// a valid token every request gets 401 (expected — this route is
+// authenticated by design). `jwks-required-at-startup=false` is set below
+// only because the placeholder issuer below doesn't exist — Flow otherwise
+// refuses to start when it can't reach a configured JWKS endpoint at all;
+// drop that attribute once you point this at a real identity provider.
+//
+// Run it:
+//   export FLOW_LICENSE_FILE=/path/to/license.json
+//   flow --config-kdl rest-api-gateway.kdl
+//   curl -k https://localhost:8443/api/anything   (401 without a token)
+services {
+    Api {
+        listeners {
+            "0.0.0.0:8443" cert-path="./cert.pem" key-path="./key.pem" offer-h2=true
+        }
+
+        routes {
+            route {
+                name "orders"
+                match {
+                    path-prefix "/api"
+                }
+                allowed-methods "GET" "POST" "OPTIONS"
+                allowed-protocols "https" "h2"
+
+                connectors {
+                    "httpbin.org:443" tls-sni="httpbin.org"
+                }
+
+                cors {
+                    allow-origins "https://app.example.com"
+                }
+
+                path-control {
+                    request-filters {
+                        // Requires a valid JWT. See docs-public/policies/token-auth.md
+                        // for introspection mode, multiple issuers, and static keys.
+                        filter kind="token-auth" jwks-required-at-startup=false {
+                            issuers {
+                                issuer name="https://idp.example.com" \
+                                    jwks-uri="https://idp.example.com/.well-known/jwks.json" \
+                                    algorithm="RS256" \
+                                    audience="https://api.example.com"
+                            }
+                        }
+
+                        // 100 requests/second per authenticated client, burst of 100.
+                        filter kind="rate-limit" key-from="client-id" \
+                            max-tokens=100 refill-qty=100 refill-interval-ms=1000 \
+                            max-buckets=50000 threads=4
+                    }
+                }
+            }
+        }
+    }
+}

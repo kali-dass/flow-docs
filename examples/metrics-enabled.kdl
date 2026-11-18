@@ -1,0 +1,51 @@
+// A working gateway with the Prometheus metrics endpoint secured with
+// TLS, bearer-token authentication, and a source CIDR allowlist. Backend
+// is httpbin.org, a public echo service; point `connectors` at your own
+// service instead.
+//
+// Needs a certificate and key — see examples.md for a one-line command to
+// generate a pair for trying this out. Export FLOW_METRICS_TOKEN with a
+// value of your choosing before running this (the scrape credential —
+// never written inline in the config). See docs-public/metrics.md for
+// every setting, including basic auth and the file-based credential
+// alternatives.
+//
+// Run it:
+//   export FLOW_LICENSE_FILE=/path/to/license.json
+//   export FLOW_METRICS_TOKEN=some-long-random-value
+//   flow --config-kdl metrics-enabled.kdl
+//   curl http://localhost:8080/anything
+//   curl -k -H "Authorization: Bearer some-long-random-value" https://localhost:9090/metrics
+system {
+    metrics {
+        listen "127.0.0.1:9090"
+        tls cert-path="./cert.pem" key-path="./key.pem"
+        auth {
+            bearer token-env="FLOW_METRICS_TOKEN"
+        }
+        allow {
+            cidr "127.0.0.0/8"
+        }
+    }
+}
+
+services {
+    Demo {
+        listeners {
+            "0.0.0.0:8080"
+        }
+        routes {
+            route {
+                name "anything"
+                match {
+                    path-prefix "/"
+                }
+                allowed-methods "GET"
+                allowed-protocols "http" "h1"
+                connectors {
+                    "httpbin.org:443" tls-sni="httpbin.org"
+                }
+            }
+        }
+    }
+}

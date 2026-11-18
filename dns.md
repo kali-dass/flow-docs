@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md). The full connector and `system` reference is in the [Configuration Reference](configuration.md).
 
-Flow resolves upstream hostnames itself, keeps the resolved set of IP addresses current in the background, and balances requests across every address a name returns. This page explains how that works, what Flow does when DNS misbehaves, and how to configure it.
+Flow resolves upstream hostnames itself, keeps the resolved set of IP addresses current in the background, and balances requests across every address a name returns. This page explains how that works, what Flow does when DNS misbehaves, and how to configure it. For a complete, runnable config, see [`examples/dns-discovered-upstream.kdl`](examples/dns-discovered-upstream.kdl) in [Examples](examples.md).
 
 ---
 

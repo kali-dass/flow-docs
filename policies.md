@@ -4,6 +4,7 @@
 > **Making a decision?** See [Design Decisions](design-decisions.md)
 > **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
+> **Want a complete config?** [`examples/rest-api-gateway.kdl`](examples/rest-api-gateway.kdl) combines several policies on one route — see [Examples](examples.md)
 
 Flow has four kinds of policy attachment:
 
