@@ -320,7 +320,9 @@ and the tier name, so a tier upgrade automatically creates a fresh bucket with t
 | `"reject"` | Reject with `400 Bad Request` | Yes |
 | `"skip"` | Pass through without rate limiting | — |
 
-Use `missing-tier-status=<401–499>` to change the rejection status code.
+Use `missing-tier-status=<code>` to change the rejection status code — unlike the sibling
+`missing-key-status` (for `header:<name>`/`composite`), this one is not currently range-checked
+at config load, so pick a real 4xx code deliberately.
 
 **Combine with `override-claims`** to let enterprise customers override their tier's params:
 
@@ -517,7 +519,7 @@ filter kind="rate-limit" key-from="composite" \
 | `missing-key-status` | `header:<name>`, `composite` | HTTP 4xx status code (400–499) returned when rejecting a missing key; default `400`. Only valid with `missing-key="reject"`. |
 | `tiers { tier name=... ... }` | `jwt-claim:<name>` | Named tier definitions — each `tier` row sets `max-tokens`, `refill-qty`, `refill-interval-ms` for one tier claim value |
 | `missing-tier` | `jwt-claim:<name>` | What to do when the JWT tier claim is absent or unknown: `"reject"` (default) or `"skip"` |
-| `missing-tier-status` | `jwt-claim:<name>` | HTTP 4xx status code for `missing-tier="reject"`; default `400` |
+| `missing-tier-status` | `jwt-claim:<name>` | Status code returned for `missing-tier="reject"`; default `400`. Not range-checked at config load (unlike `missing-key-status`'s enforced 400–499) — any integer is accepted, so pick a real 4xx code deliberately. |
 | `override-claims { claim ... }` | all multi-key variants | JWT claim–driven per-client parameter overrides — see [Per-client limits from JWT claims](#per-client-limits-from-jwt-claims--override-claims) |
 | `max-tokens-claim` | inside `override-claims` | Claim path (flat or JSON Pointer) for `max-tokens` override |
 | `refill-qty-claim` | inside `override-claims` | Claim path (flat or JSON Pointer) for `refill-qty` override |
