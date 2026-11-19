@@ -13,6 +13,31 @@ Flow's throughput is **CPU-bound and depends heavily on your configuration** .
 ranging from **~14,300 to ~28,000 requests/second on 2 CPU cores** in testing. 
 This page explains what was measured, what changes the number, and how to size your own deployment.
 
+## What the latency numbers include
+
+Every latency figure on this page is **end-to-end, measured at the client**: the whole round trip,
+not the time Flow adds. It covers the network on both hops, Flow's own work, the TLS handshakes
+and record encryption where TLS is in use, and **the backend's own service time**.
+
+```text
+         ├───────────────── measured latency: what the client sees ─────────────────┤
+
+   client ──network──▶  Flow  ──network──▶  backend  ──▶ response ──network──▶ client
+                         │                     │
+              Flow's own work          backend service time
+            (a small fraction)        (typically the largest share)
+```
+
+Two things follow, and both matter when comparing this page with another gateway's numbers:
+
+- **These are not Flow's overhead.** A 6 ms mean does not mean Flow costs 6 ms. Flow's own share
+  of that round trip is small; the backend and the network dominate it.
+- **They are measured at the sustained ceiling**, with the machine at 90–96% CPU — the worst
+  latency each configuration produces while still delivering every request. Below the ceiling,
+  latency is lower.
+
+> **Planned:** published figures for Flow's own added latency. See [Roadmap](roadmap.md#observability).
+
 ## Headline numbers
 
 All rows below come from **the same test methodology, the same hardware, and the same

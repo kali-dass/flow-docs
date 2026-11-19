@@ -108,6 +108,7 @@ For what changed in each build, see the [Changelog](changelog.md).
 | Timing headers | Available | [Timing header](policies/timing-header.md) |
 | Prometheus metrics endpoint | Available | [Metrics](metrics.md) |
 | Per-backend and per-policy metrics | Planned | Includes cache hit and miss counters and authentication failures |
+| Published figures for Flow's own added latency | Planned | The [Performance](performance.md#what-the-latency-numbers-include) figures are end-to-end and include the backend. Isolating Flow's own share needs the per-request timing the metrics endpoint now provides. |
 | TLS, authentication (basic/bearer), and a source CIDR allowlist for the metrics endpoint | Available | [Metrics](metrics.md#securing-the-endpoint) |
 | mTLS client-cert verification for the metrics endpoint | Planned | |
 | Structured per-request access logs (file, stdout, stderr) | Preview | [File-log](policies/file-log.md) |
