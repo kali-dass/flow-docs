@@ -44,46 +44,32 @@ sustains **25 req/s**.
 
 ### `max-tokens` is a capacity, not a rate
 
-`max-tokens` does not represent "tokens per second" or tokens per any time window. It is the
-size of the bucket at a moment in time. Two consequences:
+`max-tokens` is not "tokens per second". It is the size of the bucket at a moment in time —
+the burst a client can spend before the refill rate becomes the limit. Four consequences
+follow.
 
-**Idle clients accumulate tokens up to `max-tokens` and stop.** A client that sends no requests
-for a long time does not build up an unlimited balance — the bucket fills to `max-tokens` and
-stays there. When that client sends a burst, it can consume at most `max-tokens` tokens before
-throttling begins.
+**A new client starts with a full bucket.** Buckets are not created when Flow starts. There is
+one per key — per client IP, per authenticated client, per header value, depending on
+`key-from` — created the first time that key is seen, already full. A client you have never
+seen can spend all `max-tokens` immediately. With
+`max-tokens=1000 refill-qty=100 refill-interval-ms=100`, it can send 1000 requests as fast as
+it can open connections before settling to 1000/s. Size `max-tokens` to the burst you are
+willing to absorb from a first-time arrival, not just the steady rate you want to allow.
 
-**Setting `refill-qty` above `max-tokens` wastes the excess.** Tokens added by a refill that
-would push the bucket above `max-tokens` are silently discarded. For example,
-`max-tokens=2 refill-qty=5 refill-interval-ms=2000` refills 5 tokens every 2 seconds, but the
-bucket can never hold more than 2 — the other 3 are lost every cycle. The effective sustained
-throughput is still 2 requests per 2-second window, not 5. To get 5 per window, set
-`max-tokens` to at least 5.
+**Refills are incremental, never a reset.** A drained bucket regains exactly `refill-qty`
+tokens every `refill-interval-ms`, up to `max-tokens`. With
+`refill-qty=1 refill-interval-ms=60000`, an exhausted client gets one request back after a
+minute, not a fresh allowance; returning to full takes `max-tokens ÷ refill-qty` intervals of
+silence. This is what makes the limit hold under sustained pressure — a client cannot recover
+its burst by pausing briefly between batches.
 
-### A new client starts with a full bucket
+**Idle clients stop accumulating at `max-tokens`.** A long-silent client does not build an
+unlimited balance. The bucket fills to `max-tokens` and stays there.
 
-Buckets are not created when Flow starts. There is one bucket per key — per client IP, per
-authenticated client, per header value, depending on `key-from` — and each is created the
-first time that key is seen, **already full**.
-
-So the first request from a client it has never seen does not find an empty bucket and wait.
-It finds `max-tokens` tokens and can spend all of them straight away. With
-`max-tokens=1000 refill-qty=100 refill-interval-ms=100`, a brand-new client can send 1000
-requests as fast as it can open connections, and only then settles to the sustained 1000/s.
-
-Size `max-tokens` to the burst you are willing to absorb from someone arriving for the first
-time, not just to the steady rate you want to allow.
-
-### Refills are incremental, never a reset
-
-Once a bucket is drained, it does not jump back to full after a quiet period. It regains
-exactly `refill-qty` tokens every `refill-interval-ms`, up to the `max-tokens` ceiling.
-
-With `refill-qty=1 refill-interval-ms=60000`, a client that has exhausted its bucket gets one
-token back after a minute — one request, not a fresh allowance. Returning to a full bucket
-takes `max-tokens ÷ refill-qty` intervals of complete silence.
-
-This is what makes the limit hold under sustained pressure: a client cannot recover its burst
-capacity by pausing briefly between batches.
+**`refill-qty` above `max-tokens` wastes the excess.** Tokens that would push the bucket past
+`max-tokens` are discarded. `max-tokens=2 refill-qty=5 refill-interval-ms=2000` refills 5
+every 2 seconds but can never hold more than 2 — the other 3 are lost each cycle, and
+sustained throughput is 2 per window, not 5. To get 5, raise `max-tokens` to at least 5.
 
 ### Arrival rate vs. sustained rate
 
@@ -338,311 +324,28 @@ A client whose JWT carries `"sub_tier": "pro"` gets 1000-token buckets at 1000 r
 client with `"sub_tier": "trial"` gets 10 req/s. The bucket key includes both the client ID
 and the tier name, so a tier upgrade automatically creates a fresh bucket with the new limits.
 
-**Missing tier behavior** is controlled by `missing-tier`:
+Seven worked examples — the JWT payload, the `token-auth` filter and the `rate-limit` filter
+together — are in [Worked examples: JWT tiers, end to end](#worked-examples-jwt-tiers-end-to-end).
 
-| `missing-tier` | When the tier claim cannot be read | Default? |
-|---|---|---|
-| `"reject"` | Reject with `400 Bad Request` | Yes |
-| `"skip"` | Pass through without rate limiting | — |
+**When the tier claim cannot be read** — absent, or not a string or number — the request is
+rejected with `400` by default. `missing-tier` and `missing-tier-status` change that; see
+[Missing key behavior](#missing-key-behavior) for the full table and the rule for every other
+variant.
 
-Use `missing-tier-status=<code>` to change the rejection status code — unlike the sibling
-`missing-key-status` (for `header:<name>`/`composite`), this one is not currently range-checked
-at config load, so pick a real 4xx code deliberately.
+**A claim that reads fine but names an undefined tier is not rejected.** It falls through to
+the filter-level `max-tokens`, `refill-qty` and `refill-interval-ms` — so set those
+deliberately; they are the limit an unrecognised tier receives.
 
-**Combine with `override-claims`** to let enterprise customers override their tier's params:
-
-```kdl
-filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
-    max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
-    max-buckets=100000 threads=8 missing-tier="reject" {
-    tiers {
-        tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
-        tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
-    }
-    override-claims {
-        claim max-tokens-claim="rl_max_tokens" max-tokens-ceiling=10000
-    }
-}
-```
-
-Precedence (highest to lowest): JWT override claim → tier map → filter-level defaults.
-
-### Worked examples: the token, and the config that reads it
-
-The claim name in `key-from` must match what your identity provider actually puts in the
-token. Each example below shows the JWT payload first, then the two filters that read it.
-
-`expose-claims=true` is required on `token-auth` in every case — without it `rate-limit` sees
-no claims and every request falls to `missing-tier`.
-
-#### 1. A flat claim
-
-The common case: a top-level claim holding the tier name.
-
-```json
-{
-  "sub": "user-8471",
-  "iss": "https://auth.example.com/",
-  "exp": 1793452800,
-  "sub_tier": "pro"
-}
-```
-
-```kdl
-request-filters {
-    filter kind="token-auth" expose-claims=true {
-        jwks-uri "https://auth.example.com/.well-known/jwks.json"
-    }
-    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
-        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
-        max-buckets=100000 threads=8 missing-tier="reject" {
-        tiers {
-            tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
-            tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
-        }
-    }
-}
-```
-
-The claim value `"pro"` selects `tier name="pro"`. The names must match exactly — matching is
-case-sensitive.
-
-#### 2. A nested claim
-
-When the tier sits inside an object, use a JSON Pointer: a leading `/`, then one segment per
-level.
-
-```json
-{
-  "sub": "user-8471",
-  "meta": {
-    "billing": { "tier": "enterprise" }
-  }
-}
-```
-
-```kdl
-request-filters {
-    filter kind="token-auth" expose-claims=true {
-        jwks-uri "https://auth.example.com/.well-known/jwks.json"
-    }
-    filter kind="rate-limit" key-from="jwt-claim:/meta/billing/tier" \
-        max-tokens=50 refill-qty=5 refill-interval-ms=1000 missing-tier="reject" {
-        tiers {
-            tier name="enterprise" max-tokens=5000 refill-qty=500 refill-interval-ms=100
-        }
-    }
-}
-```
-
-The leading `/` is what makes it a path. Without it the whole string is treated as one literal
-claim name, which is exactly what the next example relies on.
-
-#### 3. A namespaced claim (Auth0, Okta and similar)
-
-Providers that namespace custom claims produce names containing slashes. Because the name does
-**not** start with `/`, Flow reads it as a literal key — no escaping needed.
-
-```json
-{
-  "sub": "user-8471",
-  "https://myapp.example.com/tier": "pro"
-}
-```
-
-```kdl
-request-filters {
-    filter kind="token-auth" expose-claims=true {
-        jwks-uri "https://auth.example.com/.well-known/jwks.json"
-    }
-    filter kind="rate-limit" key-from="jwt-claim:https://myapp.example.com/tier" \
-        max-tokens=50 refill-qty=5 refill-interval-ms=1000 missing-tier="reject" {
-        tiers {
-            tier name="pro" max-tokens=1000 refill-qty=100 refill-interval-ms=100
-        }
-    }
-}
-```
-
-If a *nested* key itself contains a `/`, escape it as `~1` inside a pointer: `/org~1div/tier`
-reads `claims["org/div"]["tier"]`. A literal `~` is `~0`.
-
-#### 4. A numeric tier
-
-Numbers are accepted and compared as their string form, so `tier name=` must be quoted.
-
-```json
-{ "sub": "user-8471", "plan_level": 2 }
-```
-
-```kdl
-request-filters {
-    filter kind="token-auth" expose-claims=true {
-        jwks-uri "https://auth.example.com/.well-known/jwks.json"
-    }
-    filter kind="rate-limit" key-from="jwt-claim:plan_level" \
-        max-tokens=50 refill-qty=5 refill-interval-ms=1000 missing-tier="reject" {
-        tiers {
-            tier name="1" max-tokens=100  refill-qty=10  refill-interval-ms=1000
-            tier name="2" max-tokens=1000 refill-qty=100 refill-interval-ms=100
-        }
-    }
-}
-```
-
-Only strings and numbers resolve. A boolean, `null`, an object or an array resolves to nothing
-and the request falls to `missing-tier`.
-
-#### 5. One customer with limits of their own
-
-`override-claims` lets a specific customer carry their own numbers in the token, bounded by a
-ceiling you set, while everyone else uses the tier map.
-
-```json
-{
-  "sub": "acme-corp",
-  "sub_tier": "pro",
-  "rl_max_tokens": 8000,
-  "rl_refill_qty": 800
-}
-```
-
-```kdl
-request-filters {
-    filter kind="token-auth" expose-claims=true {
-        jwks-uri "https://auth.example.com/.well-known/jwks.json"
-    }
-    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
-        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
-        max-buckets=100000 threads=8 missing-tier="reject" {
-        tiers {
-            tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
-            tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
-        }
-        override-claims {
-            claim max-tokens-claim="rl_max_tokens" max-tokens-ceiling=10000 \
-                  refill-qty-claim="rl_refill_qty" refill-qty-ceiling=1000
-        }
-    }
-}
-```
-
-This token gets 8000 tokens refilling 800 at a time — its own values, under the ceilings.
-A token asking for `20000` would be capped at the `10000` ceiling. A `pro` token with no
-override claims gets the tier's 1000/100.
-
-The ceilings are what stop a forged or over-generous token from granting unlimited traffic, so
-set them whenever you enable `override-claims`.
-
-#### 6. The same, with the overrides nested
-
-Providers often group entitlements into an object rather than putting them at the top level.
-`max-tokens-claim` and `refill-qty-claim` take a JSON Pointer for exactly this — the same
-syntax `key-from` uses.
-
-```json
-{
-  "sub": "acme-corp",
-  "sub_tier": "pro",
-  "limits": {
-    "rl": {
-      "max_tokens": 8000,
-      "refill_qty": 800
-    }
-  }
-}
-```
-
-```kdl
-request-filters {
-    filter kind="token-auth" expose-claims=true {
-        jwks-uri "https://auth.example.com/.well-known/jwks.json"
-    }
-    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
-        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
-        max-buckets=100000 threads=8 missing-tier="reject" {
-        tiers {
-            tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
-            tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
-        }
-        override-claims {
-            claim max-tokens-claim="/limits/rl/max_tokens" max-tokens-ceiling=10000 \
-                  refill-qty-claim="/limits/rl/refill_qty" refill-qty-ceiling=1000
-        }
-    }
-}
-```
-
-Same result as the flat version: 8000 tokens refilling 800 at a time, under the ceilings. The
-leading `/` is what makes the value a path — without it the whole string, slashes and all, is
-treated as one literal claim name.
-
-The tier claim and the override claims are resolved independently, so they can sit at
-different depths: a top-level `sub_tier` alongside nested `limits.rl.*`, as above.
-
-#### 7. Tokens with no tier at all
-
-Decide what happens when the tier claim **cannot be read** — it is absent from the token, or
-holds something that is not a string or number.
-
-```kdl
-request-filters {
-    filter kind="token-auth" expose-claims=true {
-        jwks-uri "https://auth.example.com/.well-known/jwks.json"
-    }
-    // Refuse the request — the default, with the status code of your choice.
-    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
-        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
-        missing-tier="reject" missing-tier-status=403 {
-        tiers {
-            tier name="pro" max-tokens=1000 refill-qty=100 refill-interval-ms=100
-        }
-    }
-}
-```
-
-Or let it through ungoverned:
-
-```kdl
-request-filters {
-    filter kind="token-auth" expose-claims=true {
-        jwks-uri "https://auth.example.com/.well-known/jwks.json"
-    }
-    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
-        max-tokens=50 refill-qty=5 refill-interval-ms=1000 missing-tier="skip" {
-        tiers {
-            tier name="pro" max-tokens=1000 refill-qty=100 refill-interval-ms=100
-        }
-    }
-}
-```
-
-`missing-tier="skip"` and `missing-tier-status` cannot be combined — a status has no meaning
-when nothing is rejected, and the configuration is refused at load.
-
-**A claim that reads fine but names an undefined tier is a different case.** It is *not*
-rejected: the request falls through to the filter-level `max-tokens`, `refill-qty` and
-`refill-interval-ms`. Set those deliberately — they are the limit anyone presenting an
-unrecognised tier will get.
-
-#### Getting the claim into the token
-
-The claim is an ordinary custom claim, added by your identity provider: an Action in Auth0, a
-protocol mapper in Keycloak, a pre-token-generation trigger in Cognito, or a claims-mapping
-policy in Entra ID. Flow reads the token; it never issues one.
-
-To try a configuration before wiring up a provider, mint a short-lived token with any JWT
-library, sign it with a key your `token-auth` filter trusts, and include the claim exactly as
-shown above.
-
-
----
+**To let one customer carry their own numbers** in the token, bounded by a ceiling you set,
+add an `override-claims` block — see
+[Per-client limits from JWT claims](#per-client-limits-from-jwt-claims--override-claims).
 
 ## Per-client limits from JWT claims — `override-claims`
 
-Any multi-key variant (`client-id`, `source-ip`, `header:<name>`, `composite`, `uri`) can
-carry an optional `override-claims` block that lets the JWT token override individual
-token-bucket parameters per client.
+Every `key-from` variant **except `uri-group`** can carry an optional `override-claims`
+block, letting the JWT override individual token-bucket parameters for one client.
+`uri-group` is the exception because it shares a single bucket across all matching
+requests — there is no per-client bucket to vary.
 
 **When to use it:** enterprise or custom-contract customers where each client's burst
 allowance or sustained rate is individually negotiated and carried in their JWT.
@@ -808,6 +511,279 @@ filter kind="rate-limit" key-from="composite" \
 }
 // Any field absent (e.g. no authenticated client) → 401 Unauthorized
 ```
+
+---
+
+## Worked examples: JWT tiers, end to end
+
+The claim name in `key-from` must match what your identity provider actually puts in the
+token. Each example below shows the JWT payload first, then the two filters that read it.
+
+`expose-claims=true` is required on `token-auth` in every case — without it `rate-limit` sees
+no claims and every request falls to `missing-tier`.
+
+### 1. A flat claim
+
+The common case: a top-level claim holding the tier name.
+
+```json
+{
+  "sub": "user-8471",
+  "iss": "https://auth.example.com/",
+  "exp": 1793452800,
+  "sub_tier": "pro"
+}
+```
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
+        max-buckets=100000 threads=8 missing-tier="reject" {
+        tiers {
+            tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
+            tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
+        }
+    }
+}
+```
+
+The claim value `"pro"` selects `tier name="pro"`. The names must match exactly — matching is
+case-sensitive.
+
+### 2. A nested claim
+
+When the tier sits inside an object, use a JSON Pointer: a leading `/`, then one segment per
+level.
+
+```json
+{
+  "sub": "user-8471",
+  "meta": {
+    "billing": { "tier": "enterprise" }
+  }
+}
+```
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+    filter kind="rate-limit" key-from="jwt-claim:/meta/billing/tier" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 missing-tier="reject" {
+        tiers {
+            tier name="enterprise" max-tokens=5000 refill-qty=500 refill-interval-ms=100
+        }
+    }
+}
+```
+
+The leading `/` is what makes it a path. Without it the whole string is treated as one literal
+claim name, which is exactly what the next example relies on.
+
+### 3. A namespaced claim (Auth0, Okta and similar)
+
+Providers that namespace custom claims produce names containing slashes. Because the name does
+**not** start with `/`, Flow reads it as a literal key — no escaping needed.
+
+```json
+{
+  "sub": "user-8471",
+  "https://myapp.example.com/tier": "pro"
+}
+```
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+    filter kind="rate-limit" key-from="jwt-claim:https://myapp.example.com/tier" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 missing-tier="reject" {
+        tiers {
+            tier name="pro" max-tokens=1000 refill-qty=100 refill-interval-ms=100
+        }
+    }
+}
+```
+
+If a *nested* key itself contains a `/`, escape it as `~1` inside a pointer: `/org~1div/tier`
+reads `claims["org/div"]["tier"]`. A literal `~` is `~0`.
+
+### 4. A numeric tier
+
+Numbers are accepted and compared as their string form, so `tier name=` must be quoted.
+
+```json
+{ "sub": "user-8471", "plan_level": 2 }
+```
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+    filter kind="rate-limit" key-from="jwt-claim:plan_level" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 missing-tier="reject" {
+        tiers {
+            tier name="1" max-tokens=100  refill-qty=10  refill-interval-ms=1000
+            tier name="2" max-tokens=1000 refill-qty=100 refill-interval-ms=100
+        }
+    }
+}
+```
+
+Only strings and numbers resolve. A boolean, `null`, an object or an array resolves to nothing
+and the request falls to `missing-tier`.
+
+### 5. One customer with limits of their own
+
+`override-claims` lets a specific customer carry their own numbers in the token, bounded by a
+ceiling you set, while everyone else uses the tier map.
+
+```json
+{
+  "sub": "acme-corp",
+  "sub_tier": "pro",
+  "rl_max_tokens": 8000,
+  "rl_refill_qty": 800
+}
+```
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
+        max-buckets=100000 threads=8 missing-tier="reject" {
+        tiers {
+            tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
+            tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
+        }
+        override-claims {
+            claim max-tokens-claim="rl_max_tokens" max-tokens-ceiling=10000 \
+                  refill-qty-claim="rl_refill_qty" refill-qty-ceiling=1000
+        }
+    }
+}
+```
+
+This token gets 8000 tokens refilling 800 at a time — its own values, under the ceilings.
+A token asking for `20000` would be capped at the `10000` ceiling. A `pro` token with no
+override claims gets the tier's 1000/100.
+
+Ceilings, precedence and the claim-path formats are covered once in
+[Per-client limits from JWT claims](#per-client-limits-from-jwt-claims--override-claims).
+
+### 6. The same, with the overrides nested
+
+Providers often group entitlements into an object rather than putting them at the top level.
+`max-tokens-claim` and `refill-qty-claim` take a JSON Pointer for exactly this — the same
+syntax `key-from` uses.
+
+```json
+{
+  "sub": "acme-corp",
+  "sub_tier": "pro",
+  "limits": {
+    "rl": {
+      "max_tokens": 8000,
+      "refill_qty": 800
+    }
+  }
+}
+```
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
+        max-buckets=100000 threads=8 missing-tier="reject" {
+        tiers {
+            tier name="pro"   max-tokens=1000 refill-qty=100 refill-interval-ms=100
+            tier name="basic" max-tokens=100  refill-qty=10  refill-interval-ms=1000
+        }
+        override-claims {
+            claim max-tokens-claim="/limits/rl/max_tokens" max-tokens-ceiling=10000 \
+                  refill-qty-claim="/limits/rl/refill_qty" refill-qty-ceiling=1000
+        }
+    }
+}
+```
+
+Same result as the flat version: 8000 tokens refilling 800 at a time, under the ceilings. The
+leading `/` is what makes the value a path — without it the whole string, slashes and all, is
+treated as one literal claim name.
+
+The tier claim and the override claims are resolved independently, so they can sit at
+different depths: a top-level `sub_tier` alongside nested `limits.rl.*`, as above.
+
+### 7. Tokens with no tier at all
+
+Decide what happens when the tier claim **cannot be read** — it is absent from the token, or
+holds something that is not a string or number.
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+    // Refuse the request — the default, with the status code of your choice.
+    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 \
+        missing-tier="reject" missing-tier-status=403 {
+        tiers {
+            tier name="pro" max-tokens=1000 refill-qty=100 refill-interval-ms=100
+        }
+    }
+}
+```
+
+Or let it through ungoverned:
+
+```kdl
+request-filters {
+    filter kind="token-auth" expose-claims=true {
+        jwks-uri "https://auth.example.com/.well-known/jwks.json"
+    }
+    filter kind="rate-limit" key-from="jwt-claim:sub_tier" \
+        max-tokens=50 refill-qty=5 refill-interval-ms=1000 missing-tier="skip" {
+        tiers {
+            tier name="pro" max-tokens=1000 refill-qty=100 refill-interval-ms=100
+        }
+    }
+}
+```
+
+`missing-tier="skip"` and `missing-tier-status` cannot be combined — a status has no meaning
+when nothing is rejected, and the configuration is refused at load.
+
+**A claim that reads fine but names an undefined tier is a different case.** It is *not*
+rejected: the request falls through to the filter-level `max-tokens`, `refill-qty` and
+`refill-interval-ms`. Set those deliberately — they are the limit anyone presenting an
+unrecognised tier will get.
+
+### Getting the claim into the token
+
+The claim is an ordinary custom claim, added by your identity provider: an Action in Auth0, a
+protocol mapper in Keycloak, a pre-token-generation trigger in Cognito, or a claims-mapping
+policy in Entra ID. Flow reads the token; it never issues one.
+
+To try a configuration before wiring up a provider, mint a short-lived token with any JWT
+library, sign it with a key your `token-auth` filter trusts, and include the claim exactly as
+shown above.
+
+
+---
 
 ---
 
