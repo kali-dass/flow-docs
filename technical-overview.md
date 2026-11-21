@@ -7,7 +7,7 @@
 
 ## What is Flow?
 
-Flow is a high-performance API and AI gateway written in Rust: an API gateway today, growing into a gateway for LLMs, MCP servers, and AI agents. Today, it terminates client connections, routes traffic based on HTTP paths, headers, or TLS SNI, proxies requests to upstream backends with HTTP/1.1 and HTTP/2 support (with optional TLS), and verifies [tokens](policies/token-auth.md) (JWT or opaque, via RFC 7662 introspection) before routing — all driven by a single KDL configuration file. Flow is growing into an LLM gateway with model management, an MCP gateway with an MCP server registry, an agent-to-agent (A2A) gateway with an agent registry, and a skills registry. See the [Roadmap](roadmap.md) for what is available and what is planned.
+Flow is a high-performance API and AI gateway written in Rust: an API gateway today, growing into a gateway for LLMs, MCP servers, and AI agents. Today, it terminates client connections, routes traffic based on HTTP paths, headers, or TLS SNI, proxies requests to upstream backends with HTTP/1.1 and HTTP/2 support (with optional TLS), and verifies [tokens](policies/token-auth.md) (JWT or opaque, via RFC 7662 introspection) before routing — all driven by a single KDL configuration file. Flow is growing into an LLM gateway with model management, an MCP gateway with an MCP server registry, an agent gateway with an agent registry, and a skills registry. See the [Roadmap](roadmap.md) for what is available and what is planned.
 
 ## How It Works
 

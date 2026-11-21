@@ -4,7 +4,7 @@ This is the one place that states what Flow can do today and what is planned. Ot
 
 Flow is a licensed product: running it requires a valid license file. See [Licensing](license.md).
 
-Flow is a high-performance API gateway today. The planned direction is an LLM gateway, then an MCP gateway, an agent-to-agent (A2A) gateway, model management, and registries for MCP servers, A2A agents, and skills. Each builds on the same foundation: the routing, security, and observability below.
+Flow is a high-performance API gateway today. The planned direction is an LLM gateway, then an MCP gateway, an agent gateway, model management, and registries for MCP servers, agents, and skills. Each builds on the same foundation: the routing, security, and observability below.
 
 **Statuses**
 
@@ -26,8 +26,8 @@ For what changed in each build, see the [Changelog](changelog.md).
 | Model management | Planned | The organization's central list of the models it has purchased, with control over which teams and people may use which, and a record of how much each has used. Routing, fallover, spend limits and rate limits refer to it. |
 | MCP gateway | Planned | Routing, tool-level access control and rate limits, MCP-aware guardrails. |
 | MCP server registry | Planned | Where teams register their MCP servers for discovery and governance. |
-| Agent-to-agent (A2A) gateway | Planned | Iteration budgets and task correlation across agent delegations. |
-| A2A agent registry | Planned | Where teams register their agents for discovery and governance. |
+| Agent gateway | Planned | Iteration budgets and task correlation across agent delegations. |
+| Agent registry | Planned | Where teams register their agents for discovery and governance. |
 | Skills registry | Planned | |
 
 ## Routing and load balancing

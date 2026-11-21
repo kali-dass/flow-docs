@@ -1,21 +1,21 @@
 <p align="center"><img src="images/Flow_light_background_logo.png" alt="Flow Unified Gateway" width="500" height="200"></p>
 <h2 align="center">Flow Unified Gateway</h2>
-<h3 align="center"> <br> AI (LLM · MCP · A2A) Gateway & API Gateway<br>With Registry for Skills & Agents<br> And Model Catalogue </h3>
+<h3 align="center"> <br> AI (LLM · MCP · Agent) Gateway & API Gateway<br>With Registry for Skills & Agents<br> And Model Catalogue </h3>
 <p align="center"><img src="images/Flow_Diagram.png" alt="Flow Unified Gateway Overview" /></p>
 <h3>Purpose-built to be hyper-fast, secure, and extremely lightweight</h3>
 
 
-Flow is a unified gateway for API, LLM, MCP, and A2A traffic — one fast, secure, lightweight gateway instead of a different tool per protocol. It sits in front of your services, handling routing, auth, rate limiting, caching, and observability so your applications don't have to. **Today, Flow is an API gateway; the LLM, MCP, and A2A gateways and the skills/agent registries are next** — see the [Roadmap](roadmap.md).
+Flow is a unified gateway for API, LLM, MCP, and A2A traffic — one fast, secure, lightweight gateway instead of a different tool per protocol. It sits in front of your services, handling routing, auth, rate limiting, caching, and observability so your applications don't have to. **Today, Flow is an API gateway; the LLM, MCP, and agent gateways and the MCP, agent and skills registries are next** — see the [Roadmap](roadmap.md).
 
 > **Pre-release software.** Flow has not had a stable release yet, so configuration and behavior may change between builds. Once it does, changes that break existing configurations will be called out explicitly.
 
 ## Why Flow
 
-Most platforms end up running a pile of separate tools to carry traffic: an API gateway for REST services, a different gateway in front of LLM calls, an MCP registry to track tool servers, an agent registry for A2A traffic, and yet another catalogue to know which models anyone is even allowed to use. Each one is its own config format, its own auth model, its own blind spot at the seams.
+Most platforms end up running a pile of separate tools to carry traffic: an API gateway for REST services, a different gateway in front of LLM calls, MCP calls and agent calls, an MCP registry to track tool servers, an agent registry for agent-to-agent traffic, a skills registry for what those agents are allowed to do, and yet another catalogue to know which models anyone is even allowed to use. Each one is its own config format, its own auth model, its own blind spot at the seams.
 
-**The bet: one gateway beats five.**
+**The bet: one gateway beats six.**
 
-- **Unified.** API, LLM, MCP, A2A — one control plane, not a tool per protocol.
+- **Unified.** API, LLM, MCP, agent — one control plane, not a tool per protocol.
 - **Fast and cheap to run.** High throughput, low latency, more work per CPU/MB — fewer machines for the same traffic.
 - **Secure by construction.** Rust's memory safety, plus Flow's own policy layers.
 - **Governed from one file.** Every access decision reviewable, versionable, auditable in one place.
@@ -64,14 +64,14 @@ Where teams register their MCP servers for discovery and governance.
 </details>
 
 <details>
-<summary><b>A2A Gateway</b> — on the <a href="roadmap.md">Roadmap</a></summary>
+<summary><b>Agent Gateway</b> — on the <a href="roadmap.md">Roadmap</a></summary>
 
 Iteration budgets and task correlation across agent delegations.
 
 </details>
 
 <details>
-<summary><b>Agents Registry</b> — on the <a href="roadmap.md">Roadmap</a></summary>
+<summary><b>Agent Registry</b> — on the <a href="roadmap.md">Roadmap</a></summary>
 
 Where teams register their agents for discovery and governance.
 
