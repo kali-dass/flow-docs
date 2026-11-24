@@ -130,9 +130,9 @@ Nothing is logged when a refresh returns the same set.
 
 | Situation | What Flow does |
 |---|---|
-| Hostname fails to resolve at startup | Logs a warning and starts with an **empty pool** for that connector. Requests to its routes return `502` until a re-resolution succeeds. Flow does not refuse to start. |
+| Hostname fails to resolve at startup | Logs an **error** (the route cannot serve — every request returns `502`) and starts with an **empty pool** for that connector, until a re-resolution succeeds. Flow does not refuse to start. |
 | Transient error on re-resolution (timeout, SERVFAIL, I/O error) | Keeps the **last known-good** addresses and logs a warning on each failure. |
-| Name no longer exists, or returns no addresses (NXDOMAIN / empty answer) | Keeps the last known-good addresses until `empty-answer-threshold` (default **3**) consecutive empty results have occurred, then clears the pool, and routes return `502`. |
+| Name no longer exists, or returns no addresses (NXDOMAIN / empty answer) | Keeps the last known-good addresses until `empty-answer-threshold` (default **3**) consecutive empty results have occurred, then clears the pool (logged at **error** — the route then returns `502`). |
 | A later lookup succeeds | Resets the failure count and replaces the pool. |
 
 Two consequences worth knowing:

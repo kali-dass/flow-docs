@@ -29,7 +29,7 @@ Most platforms end up running a pile of separate products to carry traffic: an A
 
 ### 2. Native AI Features and Native Modern API foundations
    - Smart Routing, Smart Semantic Cache, Universal API for LLM, Prompt Management, Load Balacing & Failover, Context & Memory Management, FinOps & Token Budget, Guardrails & Content Safety
-   - Identity, Access Controls, Threat Protection, Redaction & Data Loss Prevention, Governance, Observability, Audit Trials, Secret Vault
+   - Identity, Access Controls, Threat Protection, Redaction & Data Loss Prevention, Governance, Observability, Audit Trials, Secret Vault, Data Residency
 
 Native AI features and modern API foundations are critical drivers rapidly evolving integration landscape. Flow is feature rich with native features for both AI and API world.
 
@@ -135,29 +135,23 @@ The [Roadmap](roadmap.md) lists what is available and what is planned.
 Getting working gateay in 4 simple steps.
 
 1. Request a Flow Gateway license from <a href="[roadmap.md](https://tally.so/r/A7elXB)">here</a>
-2. Generate gateway config file
-> The [Getting Started](getting-started.md) guide walks through writing one 
->> Or start from [`examples/quickstart.kdl`](examples/quickstart.kdl) - the simplest working config, routing everything to [httpbin.org](https://httpbin.org/anything). 
+2. Create a Gateway config file by reading through [Getting Started](getting-started.md) guide.
+> If you are in a rush to start, use a Quick Start from [`examples/quickstart.kdl`](examples/quickstart.kdl) - the simplest working config, routing everything to [httpbin.org](https://httpbin.org/anything). 
 
-> See [Examples](examples.md) for more, including TLS, policies and gRPC.
+> More examples can be found at [Examples](examples.md), including TLS, policies, gRPC and more.
 
-3. Start Flow with config and license file
-
-**Option Not pass License to CLI**
-`flow --config-kdl quickstart.kdl`
-> **Option** - Use Environment variable to set license
- ``export FLOW_LICENSE_FILE=/path/to/license.json`` 
- **Option** - Name the license file place in current directory `./license.json`
-
-**Option Pass License to CLI**
-`flow --config-kdl gateway/config/quickstart.kdl --license-file client_license.json`
+3. Start Flow once you have both config and license file
+```
+flow --config-kdl gateway/config/quickstart.kdl --license-file client_license.json
+```
 <p align="center"><img src="images/flow_start_cli.jpg" alt="Flow Unified Gateway Overview" /></p>
 
+There are other options to pass the license file to flow with out passing the license each time. See [License](license.md) for more details.
 
->> **Option** - Pass `--license-file` to flow cli (as in screenshot above)
-
-4. Test the endpoint via Flow. Try command below in cmd
-`curl http://localhost:8080/anything`.
+4. With flow running its time to Test the endpoint via Flow. Try command below in cmd
+```
+curl http://localhost:8080/anything
+```
 
 To know more about license precedence order check [License](license.md)
 
@@ -203,7 +197,8 @@ What you can configure:
 ### Run it in production
 | Guide | What it covers |
 |---|---|
-| [Operations](operations.md) | Running in production, zero-downtime upgrades, logging |
+| [Operations](operations.md) | Running in production, zero-downtime upgrades, sizing |
+| [Logging](logging.md) | The application log and per-request records: what each carries, levels, destinations |
 | [Metrics](metrics.md) | The Prometheus endpoint: every metric, label and setting |
 | [Benchmark](performance.md) | Safe operating rates, capacity planning and tuning |
 | [How Flow Behaves](behavior.md) | What to expect at runtime: failures, rate limiting across instances, connections, streaming, WebSocket, license check |

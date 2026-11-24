@@ -5,7 +5,7 @@
 > **Know what to expect?** See [How Flow Behaves](behavior.md)
 > **Looking for something specific?** [Protocols](protocols.md) • [Configuration Reference](configuration.md) • [Routing](routing.md) • [Performance](performance.md)
 
-Running Flow in production: process management, zero-downtime upgrades, and logging.
+Running Flow in production: process management, zero-downtime upgrades, sizing and capacity. For what Flow writes and where, see [Logging](logging.md).
 
 ## Running
 
@@ -47,6 +47,7 @@ let the supervisor manage the process — that's the usual choice.
 logs still go to stdout by default, which has nowhere useful to go once nothing is reading it —
 set `output "file"` so logs actually land somewhere:
 
+<!-- check-docs: skip -->
 ```kdl
 system {
     daemonize true
@@ -151,57 +152,23 @@ zero-downtime result using the orchestration you already have.
 
 ## Logging
 
-Flow logs to stdout by default. Set the level with `--log-level` or `system.logging.app-log.level`:
+Flow logs to stdout by default. Set the level with `--log-level` or
+`system.logging.app-log.level`:
 
 ```bash
 flow --config-kdl config.kdl --log-level info
 ```
 
-See [Configuration](configuration.md#loggingapp-log) for the full `logging.app-log` reference,
-including redirecting to a file — worth doing if you're also using `daemonize` (see
-[above](#running-in-the-background)).
+Flow has two logs — the application log (Flow's own startup, configuration faults and runtime
+faults) and per-request records (opt-in, via the [`file-log`](policies/file-log.md) policy).
+There is no per-request record by default.
 
-Startup logs report each service being configured, its listeners, and any warnings — for
-example, if a connector sets a tuning option that its protocol doesn't use.
-
-Warnings worth watching for at startup:
-
-- `verify-cert=false` — certificate validation is disabled on a connector. Never in
-  production.
-- `allow-h2c=true` — the upstream hop is cleartext. Only acceptable on a trusted network.
-- Notices that `max-h2-streams` or `h2-ping-interval-secs` is set on an HTTP/1.1-only
-  connector, where it does nothing.
-
-What is and is not logged today:
-
-- **Logged by the application log** (this section): startup and configuration messages, errors
-  (connection failures, invalid requests, timeouts), and warnings such as disabled certificate
-  verification or cleartext backends.
-- **One record per request** is a separate, opt-in facility, not the application log above:
-  attach the [`file-log`](policies/file-log.md) policy to a service or route. It is not on by
-  default — add it explicitly where you want per-request visibility.
-- **Not logged, by either:** request or response bodies.
-
-### The `timing-header` filter
-
-`timing-header` adds latency headers to responses. It's cheap to run; gate it based on
-whether you want to expose internal timing to clients, not for performance. See
-[Policies](policies/timing-header.md).
-
-### Observability beyond logs
-
-Flow's own application log is startup messages, errors, and warnings, with a configurable
-level and output — separate from [`file-log`](policies/file-log.md), a per-request access log
-written to a file, stdout, or stderr. For everything else, use:
-
-- The [Prometheus metrics endpoint](metrics.md) for request counts, latency, and in-flight requests
-- Response headers (via the `timing-header` filter) for per-request latency
-- `--log-level debug` for startup diagnostics
-- External observability tools (load balancers, service mesh, APM agents) for fleet-wide visibility
-
-> **Planned:** access logs to external sinks (HTTP, Kafka, syslog), per-backend and per-policy metrics, OpenTelemetry tracing, and log masking. See [Roadmap](roadmap.md#observability).
+See [Logging](logging.md) for what each carries, what each level means, how to write the
+application log to a file, and what happens when a backend fails. Redirecting to a file is
+worth doing if you are also using `daemonize` (see [above](#running-in-the-background)).
 
 ---
+
 
 ## Sizing and capacity
 

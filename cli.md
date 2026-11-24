@@ -364,7 +364,7 @@ flow --config-kdl config.kdl --log-level warn     # quiet
 To redirect logs to a file instead of stdout (useful once you background the process — stdout
 otherwise has nowhere useful to go), set `output "file"` and `log-dir` in
 `system.logging.app-log`. See [Configuration](configuration.md#system-block) for the full
-`logging` block reference, and [Operations](operations.md#running-in-the-background) for why
+`logging` block reference, [Logging](logging.md) for what each level means, and [Operations](operations.md#running-in-the-background) for why
 this matters with `--daemonize`.
 
 At startup Flow logs each service it configures and warns about risky settings — a connector

@@ -222,5 +222,5 @@ HTTP/2 multiplexing (multiple streams per connection) is powerful but TLS handsh
 - **Configuration syntax?** See [Configuration Reference](configuration.md) for complete KDL documentation
 - **Available policies?** See [Policies](policies.md) for all filter types
 - **Performance and tuning?** See [Performance](performance.md) for benchmarks and capacity planning
-- **Production deployment?** See [Operations](operations.md) for zero-downtime upgrades, logging, and monitoring
+- **Production deployment?** See [Operations](operations.md) for zero-downtime upgrades and sizing, and [Logging](logging.md) for what Flow writes
 - **Know what to expect?** See [How Flow Behaves](behavior.md) for failure responses and known behaviors, and the [Roadmap](roadmap.md) for what is planned

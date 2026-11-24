@@ -4,8 +4,9 @@
 
 Writes one JSON line per request to a file, stdout, or stderr — status, timing, bytes
 transferred, and (optionally) specific request headers or query parameters you name. This is
-Flow's per-request access log, separate from [the application log](../configuration.md#loggingapp-log)
-(Flow's own startup/warning/error messages).
+Flow's per-request access log, separate from the application log (Flow's own startup, warning
+and error messages). [Logging](../logging.md) explains how the two differ and which carries
+what; this page is the reference for this policy.
 
 ## Quick start
 
@@ -44,7 +45,7 @@ services {
 Every request on this service writes one line like:
 
 ```json
-{"timestamp":1732400000000,"hostname":"unknown","version":"0.2.0","service":"Api","route_matched":"orders","request_id":null,"remote_addr":"10.0.0.1","host":null,"method":"GET","path":"/orders","protocol":"H1","status":200,"bytes_in":0,"bytes_out":128,"duration_upstream_us":1420,"duration_flow_us":35,"upstream_addr":"10.0.0.5:8080","captures":{}}
+{"timestamp":1732400000000,"hostname":"unknown","version":"0.2.0","service":"Api","route_matched":"orders","request_id":null,"remote_addr":"10.0.0.1","host":null,"method":"GET","path":"/orders","protocol":"H1","status":200,"bytes_in":0,"bytes_out":128,"duration_upstream_us":1420,"duration_flow_us":35,"upstream_addr":"10.0.0.5:8080","denied_by":null,"captures":{}}
 ```
 
 ## Usage
@@ -243,6 +244,7 @@ Every record carries these fields, always:
 | `bytes_in`, `bytes_out` | Request and response body bytes. |
 | `duration_upstream_us`, `duration_flow_us` | Backend time and Flow's own overhead, in microseconds; either can be `null` (a request Flow answered itself has no upstream time). |
 | `upstream_addr` | The backend that answered, or `null`. |
+| `denied_by` | What refused the request, when Flow generated the response itself; `null` when an upstream answered. The status alone is ambiguous — `403` is shared by `ip-restriction` and `token-auth`, and `502` by `no-route-matched`, `no-reachable-backend`, `no-active-connector`, `response-size-limit` and `upstream-unavailable`. Values are the policy kind (`rate-limit`, `ip-restriction`, `token-auth`, `request-size-limit`, `response-size-limit`) or the proxy-level check (`no-route-matched`, `no-reachable-backend`, `no-active-connector`, `upstream-unavailable`, `method-not-allowed`, `method-not-implemented`, `protocol-not-allowed`). It names the *kind* only — not which rate-limit key or which CIDR matched. |
 | `captures` | Named captures (below); `{}` when none are declared. |
 | `req_headers`, `resp_headers`, `querystring` | Capture-all (below); each key appears only when that tier is enabled. |
 

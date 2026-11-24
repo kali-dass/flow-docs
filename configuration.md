@@ -130,16 +130,21 @@ system {
 
 Flow's own application log — startup, config validation, warnings, errors, upgrade events.
 Not per-request access logging — see [`logging.file-log-destination`](#loggingfile-log-destination)
-and [file-log](policies/file-log.md) below for that.
+and [file-log](policies/file-log.md) below for that. [Logging](logging.md) covers what each log
+carries, what each level means, and what is not logged.
 
 | Setting | Meaning |
 |---|---|
 | `level` | One of `error`, `warn`, `info`, `debug`, `trace`. Defaults to `info`. Overridable per-invocation with `--log-level`. |
 | `output` | `"stdout"` (default) or `"file"`. |
-| `log-dir` | A **directory** (not a file path) Flow writes `flow-application.log` into. Required when `output` is `"file"`; rejected if set while `output` is `"stdout"`. |
+| `log-dir` | A **directory** (not a file path) Flow writes `flow-application.log` into — and one that **must already exist**: Flow does not create it, so a misspelled path cannot quietly become a new empty log directory. Flow refuses to start if it is missing, is not a directory, or cannot be written to. Required when `output` is `"file"`; rejected if set while `output` is `"stdout"`. |
 
-Use `output "file"` when you background Flow with `--daemonize` — otherwise logs keep going to
-stdout, which has nowhere useful to go once the process is detached. See
+Note the nesting: `app-log` is a child of `system.logging`, **not** of `system`. Placed
+directly under `system` it is refused, with a message saying where it belongs.
+
+`output "file"` works with or without `daemonize`. The two are independent — but `daemonize
+true` does **not** imply file output: leave `output` at `"stdout"` while daemonizing and the
+logs go to a detached stdout, which is to say nowhere. See
 [Operations](operations.md#running-in-the-background).
 
 > `upgrade` is deliberately **not** settable in the file — it must be passed on the CLI.
@@ -991,9 +996,9 @@ The connector-level `dns-interval-secs` attribute controls how often Flow re-res
 |---|---|---|
 | `dns-interval-secs` | `30` | Seconds between DNS re-resolution attempts for this hostname. Only applies to `discovery "Dns"` connectors; ignored on IP-address connectors. Lower values pick up DNS changes faster at the cost of more resolver queries. |
 
-**Startup behavior**: Flow resolves every DNS connector hostname at startup before opening any listener. If a hostname fails to resolve at startup, Flow logs a warning and starts with an empty backend pool for that connector — requests to routes backed by that connector receive `502` until the next re-resolution succeeds. Flow does not refuse to start on a DNS failure; a transient resolver blip does not prevent the process from coming up.
+**Startup behavior**: Flow resolves every DNS connector hostname at startup before opening any listener. If a hostname fails to resolve at startup, Flow starts with an empty backend pool for that connector and logs an error — every request to a route backed by that connector receives `502` until the next re-resolution succeeds, so the empty pool is a fault, not a warning. Flow does not refuse to start on a DNS failure; a transient resolver blip does not prevent the process from coming up.
 
-**Re-resolution**: background re-resolution runs on the `dns-interval-secs` timer. If a re-resolution fails with a transient error (timeout, SERVFAIL), the existing pool is kept — the last known-good addresses continue serving traffic. If the name returns no addresses (NXDOMAIN or an empty answer), the pool is kept until `empty-answer-threshold` (default 3) consecutive occurrences, then cleared, after which routes return `502`. Flow logs a warning on each failure. A successful re-resolution replaces the pool atomically. See [DNS Resolution](dns.md#when-dns-fails).
+**Re-resolution**: background re-resolution runs on the `dns-interval-secs` timer. If a re-resolution fails with a transient error (timeout, SERVFAIL), the existing pool is kept — the last known-good addresses continue serving traffic. If the name returns no addresses (NXDOMAIN or an empty answer), the pool is kept until `empty-answer-threshold` (default 3) consecutive occurrences, then cleared, after which routes return `502`. Each kept-stale failure is logged at `warn`; clearing the pool is logged at `error`, because the route can then no longer serve. A successful re-resolution replaces the pool atomically. See [DNS Resolution](dns.md#when-dns-fails).
 
 **Hostname format**: use `host:port`, not a bare hostname. Flow does not infer a default port from the scheme.
 

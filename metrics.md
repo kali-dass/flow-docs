@@ -686,9 +686,9 @@ sum by (route) (rate(flow_requests_total{status_class="4xx"}[5m]))
 ```
 
 - `source="upstream"`: your backend judged the request bad (validation, not found, its own authentication). Look at the backend's logs.
-- `source="flow"`: a Flow policy rejected it (authentication, rate limit `429`, IP restriction, request size). The cause is not separated today; see the questions above.
+- `source="flow"`: a Flow policy rejected it (authentication, rate limit `429`, IP restriction, request size). The metrics do not separate the cause today (per-policy metrics are [planned](roadmap.md#observability)); a [`file-log`](policies/file-log.md) record's `denied_by` field names it per request.
 
-A sudden rise on one route is a misbehaving or abusive client; a rise across every route after a release is more likely a change in what clients send. Break by `method` to see whether it is reads or writes. The metrics never carry a client address or path, so identifying the client needs the application log or your own access logs.
+A sudden rise on one route is a misbehaving or abusive client; a rise across every route after a release is more likely a change in what clients send. Break by `method` to see whether it is reads or writes. The metrics never carry a client address or path, so identifying the client needs a per-request record — attach the [`file-log`](policies/file-log.md) policy, which records the client address, path and the matched route (see [Logging](logging.md)).
 
 **How much traffic hits no route?**
 

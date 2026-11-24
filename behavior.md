@@ -2,7 +2,7 @@
 
 What to expect when you run Flow: how it responds when things go wrong, what it shares between instances, and how it handles bodies, connections, and long-lived streams. These are deliberate design choices, so knowing them helps you plan around them.
 
-For what is available and what is planned, see the [Roadmap](roadmap.md). For running Flow (signals, upgrades, logging, sizing), see [Operations](operations.md).
+For what is available and what is planned, see the [Roadmap](roadmap.md). For running Flow (signals, upgrades, sizing), see [Operations](operations.md); for what Flow logs, see [Logging](logging.md).
 
 ## Upstream failures
 
@@ -15,6 +15,8 @@ When a request arrives, Flow picks a backend (round-robin, random, or hashing), 
 **Without health checking** (`health-check "None"`, the default), Flow has no view of backend health, and failures are discovered when a request fails.
 
 **If every backend in a pool is marked unhealthy**, Flow routes requests anyway (fail-open). This keeps a misconfigured health probe from taking a service offline.
+
+**What a failure logs.** With health checking or a circuit breaker configured, the backend going down is reported once, when its state changes. With neither configured, Flow has no view of backend state, so each failed request logs its own error naming the route — otherwise a dead backend would be invisible. That is a further reason to run health checking in production, and the signal to alert on. See [Logging](logging.md#when-a-backend-fails).
 
 You will see 502s when all backends are down (maintenance, crash, a bad deployment), when a network partition isolates Flow from its backends, or when health checking is off and a backend fails silently. To handle them:
 
@@ -101,7 +103,7 @@ The effective limit is the smaller of Flow's setting and the backend's advertise
 
 ## Header size
 
-Flow accepts up to about 1 MB of headers per request, cookies included. Most APIs come nowhere near this. You could reach it with very large cookies or hundreds of custom headers, in which case Flow rejects the request and logs an error. The limit is not configurable; trim or compress header data before it reaches Flow.
+Flow accepts up to about 1 MB of headers per request, cookies included. Most APIs come nowhere near this. You could reach it with very large cookies or hundreds of custom headers, in which case Flow rejects the request before routing it. The limit is not configurable; trim or compress header data before it reaches Flow.
 
 ## Request buffering
 
