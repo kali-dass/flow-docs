@@ -45,7 +45,7 @@ services {
 Every request on this service writes one line like:
 
 ```json
-{"timestamp":1732400000000,"hostname":"unknown","version":"0.2.0","service":"Api","route_matched":"orders","request_id":null,"remote_addr":"10.0.0.1","host":null,"method":"GET","path":"/orders","protocol":"H1","status":200,"bytes_in":0,"bytes_out":128,"duration_upstream_us":1420,"duration_flow_us":35,"upstream_addr":"10.0.0.5:8080","denied_by":null,"captures":{}}
+{"timestamp":"2026-11-24T11:03:54.222Z","hostname":"unknown","version":"0.2.0","service":"Api","route_matched":"orders","request_id":null,"remote_addr":"10.0.0.1","host":null,"method":"GET","path":"/orders","protocol":"H1","status":200,"bytes_in":0,"bytes_out":128,"duration_upstream_us":1420,"duration_flow_us":35,"upstream_addr":"10.0.0.5:8080","denied_by":null,"captures":{}}
 ```
 
 ## Usage
@@ -235,7 +235,7 @@ Every record carries these fields, always:
 
 | Field | Meaning |
 |---|---|
-| `timestamp` | Unix epoch milliseconds. |
+| `timestamp` | When the record was produced (after the response completed), as an RFC 3339 / ISO 8601 string in **UTC** with millisecond precision and a `Z` suffix — for example `2026-11-24T11:03:54.222Z`. Same format as the [application log](../logging.md), so timestamps across both line up. |
 | `hostname`, `version` | The host and the running Flow build. `hostname` is currently always `"unknown"` — resolving the real host name is unimplemented. |
 | `service`, `route_matched` | The matched service and route name; `route_matched` is `null` for a request that matched no route. |
 | `request_id` | The [correlation ID](correlation-id.md) for this request, or `null` if none is attached. |
