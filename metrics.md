@@ -338,7 +338,9 @@ Every route has a required, unique-per-service [`name`](configuration.md#name-re
 | `flow_overhead_duration_seconds` | histogram | `service`, `route` | Whatever is left of the request after subtracting upstream, client transfer and upstream connection setup. For a normal proxied request that is Flow's own work, so it is the number to watch to see what Flow adds, but it is a remainder, not a direct measurement: see [Where the time goes](#where-the-time-goes-and-where-it-can-mislead). |
 | `flow_upstream_connect_duration_seconds` | histogram | `service`, `route`, `reused` | Time to get a connection to the backend: a pool checkout when `reused="true"`, a TCP/TLS handshake when `reused="false"`. Connection setup is excluded from `flow_overhead_duration_seconds`, so a cold handshake never looks like Flow being slow. |
 
-Duration histograms share these bucket upper bounds, in seconds: 0.00005, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 (and `+Inf`). The low end is fine-grained because Flow's own overhead is usually well under a millisecond.
+`flow_overhead_duration_seconds` uses its own bucket upper bounds, in seconds: 0.000005, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.000075, 0.0001, 0.00015, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.1 (and `+Inf`). Flow's own overhead is usually tens of microseconds, so the buckets are concentrated below a millisecond; a rarer stall beyond 100 ms lands in `+Inf` and still shows in the mean (`sum`/`count`).
+
+The other duration histograms (`flow_request_duration_seconds`, `flow_upstream_duration_seconds`, `flow_response_header_duration_seconds`, `flow_client_transfer_duration_seconds`, `flow_upstream_connect_duration_seconds`) share these upper bounds, in seconds: 0.00005, 0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 (and `+Inf`).
 
 The overhead and connect numbers are derived from the same timestamps as the [`timing-header`](policies/timing-header.md) policy, so `X-Flow-Duration-Us` and these metrics are consistent.
 
