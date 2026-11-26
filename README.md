@@ -141,10 +141,11 @@ Getting working gateay in 4 simple steps.
 > More examples can be found at [Examples](examples.md), including TLS, policies, gRPC and more.
 
 3. Start Flow once you have both config and license file
-```
+<p align="center"><img src="images/termcard-start.svg" alt="flow --config-kdl gateway/config/quickstart.kdl --license-file client_license.json" width="100%" /></p>
+
+```zsh
 flow --config-kdl gateway/config/quickstart.kdl --license-file client_license.json
 ```
-<p align="center"><img src="images/flow_start_cli.jpg" alt="Flow Unified Gateway Overview" /></p>
 
 There are other options to pass the license file to flow with out passing the license each time. See [License](license.md) for more details.
 
