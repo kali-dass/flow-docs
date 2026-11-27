@@ -72,7 +72,7 @@
 
 - **Real client IP resolution** — `real-ip-source` and `trusted-proxies` fields under `system`. All IP-based policies now resolve the effective client IP from `X-Forwarded-For` (or a named header) when set, rather than always using the raw TCP peer address. A trusted-proxy list is required when using XFF — Flow refuses to start without one, preventing IP spoofing. See [Configuration Reference](configuration.md#system-block).
 
-- **`X-Forwarded-For` outbound** — Flow now writes `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` on every upstream request. Incoming headers are stripped before injection when the TCP peer is not in `trusted-proxies`, preventing header chain spoofing.
+- **`X-Forwarded-For` outbound** — Flow writes `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` on every upstream request (on by default). Incoming headers are stripped before injection when the TCP peer is not in `trusted-proxies`, preventing header chain spoofing. A service-level `forwarded { }` block turns any of these off — `forwarded { enabled false }` to send none, or individual `x-forwarded-for` / `x-forwarded-proto` / `x-forwarded-host` / `strip-untrusted` keys. See [Configuration Reference](configuration.md#forwarded-headers-written-to-upstream).
 
 #### Observability
 

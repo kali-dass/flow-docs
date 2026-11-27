@@ -243,8 +243,9 @@ until `real-ip-source` is set).
 
 ### Forwarded headers written to upstream
 
-Flow automatically writes `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` to
-every upstream request. This is always-on and requires no configuration.
+By default Flow writes `X-Forwarded-For`, `X-Forwarded-Proto`, and `X-Forwarded-Host` to every
+upstream request, so backends can see the original client — the same default as Nginx, Envoy and
+HAProxy.
 
 | Header | Value |
 |---|---|
@@ -255,6 +256,52 @@ every upstream request. This is always-on and requires no configuration.
 **Strip-before-append**: if the TCP peer is not in `trusted-proxies`, any incoming
 `X-Forwarded-*` headers are stripped before Flow appends its own values. This prevents a
 client from pre-populating the chain to spoof its source IP.
+
+#### Turning it off — the `forwarded` block
+
+A **service-level** `forwarded { }` block controls this. Omit the block and all three headers are
+injected (the default above). Turn the whole thing off in one line, or drop individual headers:
+
+```kdl
+services {
+    MyService {
+        forwarded {
+            enabled false              // no X-Forwarded-* at all (see security note)
+        }
+
+        // ...or granular — omit the block, or any key, to keep the default (true):
+        // forwarded {
+        //     x-forwarded-host false       // backend sets its own Host; keep the other two
+        // }
+
+        listeners {
+            ...
+        }
+        routes {
+            ...
+        }
+    }
+}
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | Master switch. `false` disables the whole block — no headers injected, no incoming headers stripped. The per-header keys are then ignored. |
+| `x-forwarded-for` | `true` | Inject `X-Forwarded-For` (the resolved client IP). |
+| `x-forwarded-proto` | `true` | Inject `X-Forwarded-Proto` (`http`/`https`). |
+| `x-forwarded-host` | `true` | Inject `X-Forwarded-Host` (the client's original `Host`). |
+| `strip-untrusted` | `true` | Strip incoming `X-Forwarded-*` from an untrusted peer (the strip-before-append guard above). |
+
+This controls only what Flow **emits** to the upstream. It does not change how Flow resolves the
+real client IP for routing and policies — that is governed by `real-ip-source` / `trusted-proxies`
+([Real client IP](#real-client-ip)) and is independent.
+
+> **Security — pass-through.** `enabled false` (and `strip-untrusted false`) make Flow pass any
+> `X-Forwarded-*` headers a client sends **straight through to the backend, unchanged**. A
+> malicious client can then set `X-Forwarded-For` to any value and the backend will see it. Only
+> turn off stripping when the immediate peer is trusted (a private network, or a sanitizing proxy
+> in front of Flow) or the backend ignores these headers. The default (`strip-untrusted true`)
+> keeps the safe behavior.
 
 ---
 
@@ -318,6 +365,7 @@ services {
             ...
         }
         path-control { ... }   // optional, applies to every route
+        // forwarded { ... }   // optional, X-Forwarded-* control (default: all on)
     }
 }
 ```
@@ -326,6 +374,7 @@ services {
 |---|---|---|
 | `route-cache-dynamic-capacity` | 10000 | Max entries in this service's dynamic route cache. Only routes with regex or complex matchers use this cache — prefix-only routes use a separate static index. Increase if you have a large number of distinct request paths and observe cache evictions in the metrics. For most deployments the default is sufficient. |
 | `keepalive-timeout-secs` | 60 | How long an idle **downstream** (client) H1 connection is held open waiting for the next request. `0` means no cap — defer entirely to the client's `Keep-Alive` header. No effect on H2 connections. |
+| `forwarded` | all on | Which `X-Forwarded-*` headers Flow writes to the upstream, and whether it strips forged incoming ones. See [Forwarded headers written to upstream](#forwarded-headers-written-to-upstream). |
 
 ---
 
