@@ -123,7 +123,7 @@ system {
 | `pid-file` | Absolute path to the PID file used when daemonizing. |
 | `upgrade-socket` | Absolute path to the Unix socket used for zero-downtime upgrades. See [Operations](operations.md). |
 | `ca-file` | A CA bundle trusted for **all** outgoing upstream TLS connections. Use when every upstream shares one private CA. For per-upstream CAs, use `ca-cert-path` on the connector instead. |
-| `metrics` | A Prometheus metrics endpoint on its own `IP:port` listener (`listen`), with `enabled false` to switch it off, `tls cert-path="…" key-path="…"` to serve it over TLS, `auth { basic … }`/`auth { bearer … }` to require a credential, `allow { cidr "…" }` to restrict which source addresses may scrape, and `groups { dns true  bandwidth true }` for optional series. Off unless the block is present. A non-loopback `listen` with `tls`/`auth`/`allow` all absent is refused unless `insecure-allow-public true` is set. See [Metrics](metrics.md). |
+| `metrics` | A Prometheus metrics endpoint on its own `IP:port` listener (`listen`), with `enabled false` to switch it off, `tls cert-path="…" key-path="…"` to serve it over TLS, `auth { basic … }`/`auth { bearer … }` to require a credential, `allow { cidr "…" }` to restrict which source addresses may scrape, and `groups { dns true  bandwidth true  latency-breakdown true }` for optional series. Off unless the block is present. A non-loopback `listen` with `tls`/`auth`/`allow` all absent is refused unless `insecure-allow-public true` is set. See [Metrics](metrics.md). |
 | `real-ip-source` | How to resolve the effective client IP. `"peer"` (default), `"xff"` (X-Forwarded-For), or `"header:<name>"` (single named header). Requires `trusted-proxies` when not `"peer"`. See [Real client IP](#real-client-ip) below. |
 
 ### `logging.app-log`
@@ -344,6 +344,7 @@ system {
 | `insecure-allow-public` | `false` | `true` / `false`; see [Metrics](metrics.md#insecure-allow-public) |
 | `groups.dns` | `false` | `true` / `false` |
 | `groups.bandwidth` | `false` | `true` / `false` |
+| `groups.latency-breakdown` | `false` | `true` / `false` — the four per-phase latency histograms (see [Metrics](metrics.md#optional-groups)) |
 
 ---
 

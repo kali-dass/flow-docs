@@ -2,7 +2,7 @@
 
 > **New here?** Start with [Getting Started](getting-started.md). The full `system` reference is in the [Configuration Reference](configuration.md#system-block).
 
-Flow can expose Prometheus metrics on a separate endpoint: request counts, latency broken down into where the time went, in-flight requests, long-lived streams (SSE and WebSocket), and optional per-hostname DNS and per-route bandwidth series. This page covers how to turn it on, what is exposed, and how to keep the number of series bounded. For a complete, runnable config, see [`examples/metrics-enabled.kdl`](examples/metrics-enabled.kdl) in [Examples](examples.md).
+Flow can expose Prometheus metrics on a separate endpoint: request counts, total and Flow-overhead latency, in-flight requests, long-lived streams (SSE and WebSocket), and optional families — the per-phase latency breakdown, per-hostname DNS, and per-route bandwidth. This page covers how to turn it on, what is exposed, and how to keep the number of series bounded. For a complete, runnable config, see [`examples/metrics-enabled.kdl`](examples/metrics-enabled.kdl) in [Examples](examples.md).
 
 ---
 
@@ -19,6 +19,7 @@ system {
         // groups {                     // optional families, all off by default
         //     dns true
         //     bandwidth true
+        //     latency-breakdown true
         // }
     }
 }
@@ -32,7 +33,7 @@ system {
 | `auth` | — | `basic` or `bearer` — require a credential on every scrape. See [Securing the endpoint](#securing-the-endpoint). |
 | `allow` | unrestricted | `cidr "…"`, repeatable — restrict scrapes to these source ranges. See [Securing the endpoint](#securing-the-endpoint). |
 | `insecure-allow-public` | `false` | Explicit opt-out of the refusal below. See [Securing the endpoint](#securing-the-endpoint). |
-| `groups` | all off | Optional metric families. Each group is a boolean: `dns`, `bandwidth`. Unknown group names are rejected. See [Optional groups](#optional-groups). |
+| `groups` | all off | Optional metric families. Each group is a boolean: `dns`, `bandwidth`, `latency-breakdown`. Unknown group names are rejected. See [Optional groups](#optional-groups). |
 
 ### Rules
 
@@ -46,7 +47,7 @@ system {
 - **`auth` takes exactly one scheme block, `basic` or `bearer`.** Neither, or both, is rejected. See [Securing the endpoint](#securing-the-endpoint) for each scheme's attributes and how its credential is resolved.
 - **`allow` takes any number of `cidr "…"` entries,** each a valid IPv4 or IPv6 CIDR range; an empty `allow { }` block is accepted and means the same as omitting `allow` entirely — unrestricted. Anything other than `cidr` inside it, or an invalid range, is rejected.
 - **A non-loopback `listen` with `tls`, `auth`, and `allow` all absent is refused when the config loads** — that combination would expose route names, traffic volumes, and backend hostnames to anyone who can reach the port, with nothing in front of it at all. Set `insecure-allow-public true` to start anyway; Flow then logs a loud warning on every start reminding you that it did. One of the three present (even just one) downgrades this to the ordinary non-loopback warning below, not a refusal — `insecure-allow-public` only matters for "all three missing." **Only applies when `enabled` isn't `false`** — a disabled block starts no listener at all, so there's nothing to expose and nothing to refuse; a template config kept inert on purpose is validated, not rejected.
-- **`groups` takes only the names `dns` and `bandwidth`,** each set to `true` or `false`. An empty `groups { }` block is allowed and turns nothing on. An unknown group, a non-boolean value, or the same group or block twice is rejected.
+- **`groups` takes only the names `dns`, `bandwidth` and `latency-breakdown`,** each set to `true` or `false`. An empty `groups { }` block is allowed and turns nothing on. An unknown group, a non-boolean value, or the same group or block twice is rejected.
 - **Nothing is started or recorded when disabled.** With `enabled false` (or no block at all), Flow opens no extra listener and the request path records nothing.
 - **The metrics listener uses its own thread,** separate from the `threads-per-service` workers.
 
@@ -61,7 +62,7 @@ metrics auth: requires exactly one of 'basic' or 'bearer', got none or several
 metrics allow: unknown entry 'host' — only 'cidr' is accepted
 metrics allow > cidr: 'not-a-cidr' is not a valid CIDR range
 metrics: listen address 0.0.0.0:9090 is not loopback and has none of tls, auth, or allow configured — this would expose Flow's operational data (route names, traffic volumes, backend hostnames) to any address that can reach this port. Add tls, auth, or allow, or set insecure-allow-public true to start anyway (not recommended).
-Unknown metrics group: 'cache' (supported: `dns`, `bandwidth`)
+Unknown metrics group: 'cache' (supported: `dns`, `bandwidth`, `latency-breakdown`)
 Unknown metrics setting: 'path' (supported: `listen`, `enabled`, `groups`, `tls`, `auth`, `allow`, `insecure-allow-public`)
 ```
 
@@ -325,18 +326,23 @@ All names start with `flow_`. Durations are in **seconds** (Flow measures in mic
 
 Every route has a required, unique-per-service [`name`](configuration.md#name-required), which is what the `route` label carries. Requests that match no route (and `405`/`501` responses, which are decided before a route is chosen) are counted under `route="unmatched"` for their service. `unmatched` is a reserved name and cannot be used for a route.
 
-### Requests and latency (always on when metrics are enabled)
+### Requests and latency
+
+Always on when metrics are enabled. The **per-phase breakdown** histograms — response-header,
+upstream, client-transfer and connect — are the exception: they require `groups { latency-breakdown
+true }` (see [Optional groups](#optional-groups)). The whole-request duration and Flow's own
+overhead are always recorded.
 
 | Metric | Type | Labels | What it measures |
 |---|---|---|---|
 | `flow_requests_total` | counter | `service`, `route`, `status_class`, `method`, `source` | Finished requests. A series appears the first time that combination occurs. |
 | `flow_in_flight_requests` | gauge | `service` | Requests being handled right now. Returns to 0 when idle, including after errors and client disconnects. |
-| `flow_response_header_duration_seconds` | histogram | `service`, `route` | From request arrival until Flow had finished its response-side work and the response headers were ready to send. Upstream responses only. |
 | `flow_request_duration_seconds` | histogram | `service`, `route` | The whole request: arrival until the client finished downloading the response. **Not recorded for [streams](#streams-sse-and-websocket).** |
-| `flow_client_transfer_duration_seconds` | histogram | `service`, `route` | From headers ready until the body was sent to the client. Large for big downloads and slow clients. Upstream responses only. |
-| `flow_upstream_duration_seconds` | histogram | `service`, `route` | The backend round trip as Flow sees it: from the start of the upstream-request phase (the `upstream-request` policies run first) until the response headers arrive. It includes sending the request, backend processing and the network, but not connection setup and not the response body. Connection setup is measured separately in `flow_upstream_connect_duration_seconds`, and it happens before this window opens. The response body is part of `flow_client_transfer_duration_seconds`: it is read from the backend and written to the client as one stream, and Flow does not time the two sides separately, so there is no backend-only body time. Recorded only when a backend answered with headers. |
 | `flow_overhead_duration_seconds` | histogram | `service`, `route` | Whatever is left of the request after subtracting upstream, client transfer and upstream connection setup. For a normal proxied request that is Flow's own work, so it is the number to watch to see what Flow adds, but it is a remainder, not a direct measurement: see [Where the time goes](#where-the-time-goes-and-where-it-can-mislead). |
-| `flow_upstream_connect_duration_seconds` | histogram | `service`, `route`, `reused` | Time to get a connection to the backend: a pool checkout when `reused="true"`, a TCP/TLS handshake when `reused="false"`. Connection setup is excluded from `flow_overhead_duration_seconds`, so a cold handshake never looks like Flow being slow. |
+| `flow_response_header_duration_seconds` | histogram | `service`, `route` | **Requires `groups { latency-breakdown }`.** From request arrival until Flow had finished its response-side work and the response headers were ready to send. Upstream responses only. |
+| `flow_client_transfer_duration_seconds` | histogram | `service`, `route` | **Requires `groups { latency-breakdown }`.** From headers ready until the body was sent to the client. Large for big downloads and slow clients. Upstream responses only. |
+| `flow_upstream_duration_seconds` | histogram | `service`, `route` | **Requires `groups { latency-breakdown }`.** The backend round trip as Flow sees it: from the start of the upstream-request phase (the `upstream-request` policies run first) until the response headers arrive. It includes sending the request, backend processing and the network, but not connection setup and not the response body. Connection setup is measured separately in `flow_upstream_connect_duration_seconds`, and it happens before this window opens. The response body is part of `flow_client_transfer_duration_seconds`: it is read from the backend and written to the client as one stream, and Flow does not time the two sides separately, so there is no backend-only body time. Recorded only when a backend answered with headers. |
+| `flow_upstream_connect_duration_seconds` | histogram | `service`, `route`, `reused` | **Requires `groups { latency-breakdown }`.** Time to get a connection to the backend: a pool checkout when `reused="true"`, a TCP/TLS handshake when `reused="false"`. Connection setup is excluded from `flow_overhead_duration_seconds`, so a cold handshake never looks like Flow being slow. |
 
 `flow_overhead_duration_seconds` uses its own bucket upper bounds, in seconds: 0.000005, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.000075, 0.0001, 0.00015, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.1 (and `+Inf`). Flow's own overhead is usually tens of microseconds, so the buckets are concentrated below a millisecond; a rarer stall beyond 100 ms lands in `+Inf` and still shows in the mean (`sum`/`count`).
 
@@ -353,7 +359,7 @@ Long-lived responses would make the request-duration histogram meaningless (a st
 
 Detection needs no configuration. gRPC is **not** treated as a stream, because most gRPC calls are short unary calls; gRPC traffic stays in the ordinary request metrics. An error that Flow itself sends to a gRPC call is also an HTTP 200, so it counts as `status_class="2xx"` with `source="flow"`; see [Non-REST Protocols](non-rest-protocols.md#errors-flow-produces-on-a-grpc-route).
 
-A stream still counts in `flow_requests_total` and the response-header, upstream, connect and overhead histograms; it is excluded only from `flow_request_duration_seconds`.
+A stream still counts in `flow_requests_total` and the overhead histogram (and, with `groups { latency-breakdown }`, the response-header, upstream and connect histograms); it is excluded only from `flow_request_duration_seconds`.
 
 | Metric | Type | Labels | What it measures |
 |---|---|---|---|
@@ -376,7 +382,7 @@ A refusal also counts in `flow_requests_total` with `source="flow"`: `5xx` for a
 
 ### Optional groups
 
-Turn each on under `metrics { groups { … } }`. Both are off by default and register nothing when off.
+Turn each on under `metrics { groups { … } }`. All are off by default and register nothing when off.
 
 **`dns`**: per-hostname series for connectors that use [DNS discovery](dns.md). A connector with `discovery "Static"`, or one that is an IP literal, never refreshes and exports nothing.
 
@@ -393,6 +399,8 @@ A failed refresh leaves `flow_dns_resolved_addresses` unchanged, because Flow ke
 | Metric | Type | Labels | What it measures |
 |---|---|---|---|
 | `flow_bandwidth_bytes_total` | counter | `service`, `route`, `direction` | Body bytes per route: `in` is the request body read from the client, `out` is the response body written to the client (after any compression). Counts every request, streams included. Headers are not counted. |
+
+**`latency-breakdown`**: the four per-phase latency histograms that decompose where a request's time went — `flow_response_header_duration_seconds`, `flow_upstream_duration_seconds`, `flow_client_transfer_duration_seconds` and `flow_upstream_connect_duration_seconds` (described in [Requests and latency](#requests-and-latency)). Off by default because they are a per-request cost on a high-throughput path and a diagnostic aid rather than a baseline signal: the always-on `flow_request_duration_seconds` (total) and `flow_overhead_duration_seconds` (Flow's own slice) cover SLOs and "is Flow adding latency?" without them. Turn this on when you need to attribute a slow request to the backend, the client transfer, or connection setup.
 
 ### Housekeeping
 
@@ -417,7 +425,7 @@ Every duration is measured from the moment Flow has received the request until i
  not measured      | overhead         | connect     | upstream            | overhead   | client_transfer           | not measured
 ```
 
-`overhead + connect + upstream + client_transfer = flow_request_duration_seconds`. Overhead is the remainder, so anything that is not one of the other three lands in it.
+`overhead + connect + upstream + client_transfer = flow_request_duration_seconds` (the `connect`, `upstream` and `client_transfer` terms require `groups { latency-breakdown }`; `overhead` and the total are always on). Overhead is the remainder, so anything that is not one of the other three lands in it.
 
 ### Reconciling with what a client sees
 
